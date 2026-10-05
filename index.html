@@ -573,7 +573,8 @@
 
   /* ---------- 音楽 ---------- */
   .walk-tools .btn-music { flex: 0 0 auto; width: auto; padding: 4px 14px; }
-  .music-link { margin: 4px 0 0; text-align: center; }
+  .music-link { margin: 30px 0 0; /* 上の「ルートを探す」の帯が下に16pxはみ出すので、その分あける */ text-align: center; }
+  .music-link:not([hidden]) + .about-link { margin-top: 12px; }
   .music-link .btn-link svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 4px; }
   .credit .credit-btn { min-height: 0; padding: 0; font: inherit; font-weight: 400; color: var(--ink-2); }
   .music-pill { flex: 0 0 auto; display: flex; align-items: stretch; gap: 6px; margin: 0 16px 6px; }
@@ -1827,18 +1828,6 @@
     renderMusic();
   }
   // 通信量のめやす（曲のファイルの大きさが一覧にあればそこから。無ければ 1分で約1MB）
-  function musicMbPerMin() {
-    var bytes = 0, sec = 0;
-    musicCats().forEach(function (c) {
-      c.tracks.forEach(function (t) {
-        var b = t.sizeBytes || t.bytes || t.size;
-        if (isFinite(b) && b > 0 && isFinite(t.durationSec) && t.durationSec > 0) { bytes += +b; sec += +t.durationSec; }
-      });
-    });
-    if (!(sec > 60)) return 1;
-    var mb = bytes / 1e6 / sec * 60;
-    return mb >= 0.95 ? Math.round(mb) : Math.max(0.1, Math.round(mb * 10) / 10);
-  }
   function musicInit() {
     var M = musicApi();
     if (!M) return;
@@ -1900,7 +1889,6 @@
     var cats = musicCats();
     if (!cats.some(function (c) { return c.key === sel; })) sel = null;
     var t = cur && cur.track;
-    var mb = musicMbPerMin();
     var h = '<div class="ms-head"><h2 id="msTitle">散歩の音楽</h2><button type="button" class="ms-close" data-ms="close" aria-label="閉じる">×</button></div>' +
       '<div class="ms-cats" role="group" aria-label="曲の種類">' + cats.map(function (c) {
         return '<button type="button" class="ms-cat" data-ms-cat="' + esc(c.key) + '" aria-pressed="' + (c.key === sel) + '"><b>' + esc(c.nameJa || c.key) + '</b>' + (c.descJa ? '<small>' + esc(c.descJa) + '</small>' : '') + '</button>';
@@ -1915,7 +1903,7 @@
         : '<p class="ms-note">音量は、スマホ本体の音量ボタンで調整してください。</p>') +
       (music.err ? '<p class="ms-err" role="alert">' + esc(music.err) + '</p>' : '') +
       '<p class="ms-note ear">周りの音が聞こえる音量で聞きましょう。車や自転車の音に気をつけてください。</p>' +
-      '<p class="ms-note">通信するのは、音楽をかけている間だけです（1分で約' + mb + 'MB・1時間で約' + Math.round(mb * 60) + 'MB）。Wi-Fi の無い所では、スマホの通信量にご注意ください。</p>' +
+      '<p class="ms-note">通信するのは、音楽をかけている間だけです。</p>' +
       '<p class="ms-note"><button type="button" class="btn-link" data-ms="credits">曲の出典</button>（作者と、使ってよい条件）</p>';
     var card = $('#msCard'), fo = document.activeElement, foKey = fo && card.contains(fo) ? (fo.getAttribute('data-ms') || fo.getAttribute('data-ms-cat') || fo.id) : null;
     card.innerHTML = h;
