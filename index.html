@@ -344,6 +344,7 @@
   .banner.turn .t-main { display: block; font-size: calc(24px * var(--fs)); font-weight: 900; line-height: 1.25; }
   .banner.turn .t-dist { color: var(--sun); margin-right: .3em; white-space: nowrap; }
   .banner.turn .t-act { white-space: nowrap; }
+  .banner .b-sub .nw { display: inline-block; }
   .banner.turn .b-sub { font-size: calc(16px * var(--fs)); font-weight: 700; margin-top: 2px; color: #DDEFE8; }
   .banner.turn.soon { background: #8A4B00; }
   .banner.turn.soon .t-ico { color: #8A4B00; }
@@ -564,7 +565,62 @@
   .note-off { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px; padding: 8px 6px 8px 12px; border-radius: 12px; background: var(--notice-bg); border: 1px solid var(--notice-line); font-size: calc(15px * var(--fs)); font-weight: 700; line-height: 1.45; }
   .note-off span { flex: 1; padding-top: 4px; }
   .note-off button { flex: 0 0 44px; height: 44px; border: 0; background: transparent; font-size: calc(22px * var(--fs)); line-height: 1; color: var(--ink-2); }
+  .note-tip { display: flex; gap: 6px; align-items: center; margin: 0 0 8px; padding: 2px 2px 2px 12px; border-radius: 12px; background: var(--surface); font-size: calc(14px * var(--fs)); line-height: 1.45; color: var(--ink); }
+  .note-tip > span { flex: 1; padding: 6px 0; }
+  .note-tip .tp { display: inline-block; }
+  .note-tip button { flex: 0 0 44px; height: 44px; border: 0; background: transparent; font-size: calc(22px * var(--fs)); line-height: 1; color: var(--ink-2); }
   .mini-spin { width: 34px; height: 34px; margin: 4px auto 10px; border-width: 4px; }
+
+  /* ---------- 音楽 ---------- */
+  .walk-tools .btn-music { flex: 0 0 auto; width: auto; padding: 4px 14px; }
+  .music-link { margin: 4px 0 0; text-align: center; }
+  .music-link .btn-link svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 4px; }
+  .credit .credit-btn { min-height: 0; padding: 0; font: inherit; font-weight: 400; color: var(--ink-2); }
+  .music-pill { flex: 0 0 auto; display: flex; align-items: stretch; gap: 6px; margin: 0 16px 6px; }
+  .music-pill .mp-open {
+    flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 4px 12px;
+    border: 1px solid #C9DCD4; border-radius: 22px; background: var(--primary-soft); color: var(--ink); font: inherit; font-size: calc(14px * var(--fs)); text-align: left;
+  }
+  .music-pill .mp-open svg { width: 18px; height: 18px; flex: none; color: var(--primary-dark); }
+  .music-pill .mp-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .music-pill .mp-txt b { font-weight: 800; }
+  .music-pill .mp-play { flex: 0 0 44px; width: 44px; min-height: 44px; border-radius: 50%; border: 2px solid var(--primary); background: #fff; color: var(--primary-dark); display: flex; align-items: center; justify-content: center; padding: 0; }
+  .music-pill .mp-play svg { width: 20px; height: 20px; }
+  .music-pill.paused .mp-open { background: var(--surface); border-color: var(--line); }
+  @media (min-width: 900px) { .music-pill { margin: 10px 20px 0; } }
+  #musicSheet { position: fixed; inset: 0; z-index: 1900; display: flex; align-items: flex-end; justify-content: center; background: rgba(15, 30, 25, .45); }
+  .ms-card {
+    width: 100%; max-width: 520px; max-height: calc(100dvh - 24px); overflow-y: auto; background: #fff; border-radius: 20px 20px 0 0;
+    padding: 6px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 24px rgba(0,0,0,.3); animation: up .22s ease-out;
+  }
+  @keyframes up { from { transform: translateY(30px); } }
+  @media (min-width: 900px) { #musicSheet { align-items: center; } .ms-card { border-radius: 20px; } }
+  .ms-head { display: flex; align-items: center; gap: 8px; }
+  .ms-head h2 { flex: 1; margin: 0; font-size: calc(20px * var(--fs)); }
+  .ms-close { flex: 0 0 44px; height: 44px; border: 0; background: transparent; font-size: calc(24px * var(--fs)); color: var(--ink-2); }
+  .ms-cats { display: grid; gap: 8px; margin: 6px 0 12px; }
+  .ms-cat { display: block; width: 100%; text-align: left; padding: 10px 12px; border: 2px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); font: inherit; }
+  .ms-cat b { display: block; font-size: calc(17px * var(--fs)); }
+  .ms-cat small { display: block; font-size: calc(14px * var(--fs)); color: var(--ink-2); line-height: 1.45; }
+  .ms-cat[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
+  .ms-cat[aria-pressed="true"] b::after { content: "選択中"; margin-left: 8px; font-size: calc(12px * var(--fs)); font-weight: 800; color: #fff; background: var(--primary); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
+  .ms-now { text-align: center; margin: 4px 0 6px; min-height: 2.8em; }
+  .ms-now .t { font-weight: 800; font-size: calc(17px * var(--fs)); overflow-wrap: anywhere; }
+  .ms-now .a { color: var(--ink-2); font-size: calc(14px * var(--fs)); }
+  .ms-ctrl { display: flex; justify-content: center; align-items: center; gap: 18px; margin: 4px 0 10px; }
+  .ms-ctrl button { width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--primary); background: #fff; color: var(--primary-dark); display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ms-ctrl button svg { width: 24px; height: 24px; }
+  .ms-ctrl .ms-play { width: 68px; height: 68px; background: var(--primary); color: #fff; }
+  .ms-ctrl .ms-play svg { width: 30px; height: 30px; }
+  .ms-ctrl button[disabled] { opacity: .4; }
+  .ms-vol { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-weight: 700; font-size: calc(15px * var(--fs)); }
+  .ms-vol input { flex: 1; min-width: 0; height: 44px; accent-color: var(--primary); }
+  .ms-note { margin: 0 0 6px; font-size: calc(14px * var(--fs)); line-height: 1.5; color: var(--ink-2); }
+  .ms-note.ear { color: var(--ink); font-weight: 700; }
+  .ms-err { margin: 0 0 8px; font-size: calc(14px * var(--fs)); font-weight: 700; color: var(--danger); }
+  .ms-credits { list-style: none; padding: 0; margin: 0; font-size: calc(14px * var(--fs)); line-height: 1.5; }
+  .ms-credits li { padding: 6px 0; border-bottom: 1px dotted var(--line); overflow-wrap: anywhere; }
+  .ms-credits li a { color: var(--primary-dark); white-space: nowrap; }
 
   /* 1kmごとのペース */
   .splits { text-align: left; margin: 10px 0 6px; font-size: calc(15px * var(--fs)); }
@@ -647,6 +703,10 @@
     </div>
     <button type="button" id="handle" aria-expanded="true"><span id="handleText">地図を大きくする</span></button>
 
+    <div class="music-pill" id="musicPill" hidden>
+      <button type="button" class="mp-open" id="mpOpen" aria-haspopup="dialog"></button>
+      <button type="button" class="mp-play" id="mpPlay"></button>
+    </div>
     <div id="screens">
       <div id="moduleError" class="msg msg-error" hidden></div>
 
@@ -696,6 +756,7 @@
           <p class="field-error" id="searchError" hidden></p>
           <button type="button" class="btn btn-primary" id="btnSearch">ルートを探す</button>
         </div>
+        <p class="music-link" id="musicFormRow" hidden><button type="button" class="btn-link" id="btnMusicForm" aria-haspopup="dialog"></button></p>
         <p class="about-link"><a href="about.html">はじめての方へ：ぐるっとさんぽの使い方</a></p>
       </section>
 
@@ -736,6 +797,7 @@
       <!-- 4. 歩いている間 -->
       <section class="screen" id="scr-walk" hidden>
         <div class="note-off" id="screenOffNote" role="status" hidden><span id="screenOffText"></span><button type="button" id="btnOffClose" aria-label="この知らせを閉じる">×</button></div>
+        <div class="note-tip" id="pocketTip" hidden><span><span class="tp">画面を消してポケットに入れても大丈夫。</span><span class="tp">曲がり角の前に画面をつけてください</span></span><button type="button" id="btnTipClose" aria-label="このヒントを閉じる">×</button></div>
         <div class="walk-head" id="walkHead"></div>
         <div class="stats">
           <div class="stat hero"><div class="k">歩いた距離</div><div><span class="v" id="wDist">0</span><span class="u" id="wDistU">m</span></div></div>
@@ -746,6 +808,7 @@
         <p class="pace-line" id="wPace" hidden></p>
         <div class="walk-tools" id="walkTools">
           <button type="button" class="btn" id="btnVoice" aria-pressed="false" hidden></button>
+          <button type="button" class="btn btn-music" id="btnMusic" aria-haspopup="dialog" hidden></button>
           <button type="button" class="btn" id="btnShortcut" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4"/><path d="M11 4h9v9"/></svg>近道で帰る</button>
         </div>
         <ul class="walk-poi" id="walkPoi" hidden></ul>
@@ -867,7 +930,8 @@
           道・コンビニ・トイレのデータ：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors<br>
           住所検索：国土地理院<br>
           坂の多さ：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 標高タイル</a><br>
-          天気・雨雲レーダー：<a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁ホームページ</a>（データを加工して表示）
+          天気・雨雲レーダー：<a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁ホームページ</a>（データを加工して表示）<span id="musicCreditLine" hidden><br>
+          音楽：曲ごとの作者と使ってよい条件は <button type="button" class="btn-link credit-btn" id="btnMusicCredits">曲の出典</button> に載せています</span>
         </p>
       </section>
     </div>
@@ -890,6 +954,7 @@
 </div>
 
 <div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-card" id="modalCard"></div></div>
+<div id="musicSheet" hidden role="dialog" aria-modal="true" aria-labelledby="msTitle"><div class="ms-card" id="msCard"></div></div>
 <div id="toast" hidden role="status"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -901,6 +966,7 @@
 <script src="elevation.js"></script>
 <script src="sun.js"></script>
 <script src="weather.js"></script>
+<script src="music.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1002,7 +1068,8 @@
   /* ====================== 設定（localStorage） ====================== */
   var SETTINGS_KEY = 'sanpo.settings';
   var DEFAULTS = { strideCm: 70, home: null, goalType: 'start', inputMode: 'km', lastKm: 3, lastSteps: 5000, lastMin: 30,
-    walkSpeed: 80, voice: false, fontScale: 'normal', showSkipped: true, goal: null, radar: false };
+    walkSpeed: 80, voice: false, fontScale: 'normal', showSkipped: true, goal: null, radar: false,
+    musicCat: null, musicVol: 0.6, tipPocketSeen: false };
   function loadSettings() {
     var s = Object.assign({}, DEFAULTS);
     try {
@@ -1019,6 +1086,9 @@
         if (o.fontScale === 'normal' || o.fontScale === 'large' || o.fontScale === 'xlarge') s.fontScale = o.fontScale;
         if (typeof o.showSkipped === 'boolean') s.showSkipped = o.showSkipped;
         if (typeof o.radar === 'boolean') s.radar = o.radar;
+        if (typeof o.musicCat === 'string' && /^[\w-]{1,30}$/.test(o.musicCat)) s.musicCat = o.musicCat;
+        if (isFinite(o.musicVol) && o.musicVol >= 0 && o.musicVol <= 1) s.musicVol = +o.musicVol;
+        if (typeof o.tipPocketSeen === 'boolean') s.tipPocketSeen = o.tipPocketSeen;
         if (o.goal && (o.goal.period === 'week' || o.goal.period === 'month') && isFinite(o.goal.meters) && o.goal.meters > 0) s.goal = { period: o.goal.period, meters: +o.goal.meters };
         if (isFinite(o.lastKm) && o.lastKm > 0) s.lastKm = +o.lastKm;
         if (isFinite(o.lastSteps) && o.lastSteps > 0) s.lastSteps = +o.lastSteps;
@@ -1227,7 +1297,7 @@
       else if (g) {
         main = '<div class="banner turn' + (g.soon ? ' soon' : '') + (g.calm ? ' calm' : '') + '" role="status"><span class="t-ico">' + turnSvg(g.dir) + '</span><span class="b-txt">' +
           '<span class="t-main">' + (g.dist ? '<span class="t-dist">' + esc(g.dist) + '</span>' : '') + '<span class="t-act">' + esc(g.act) + '</span></span>' +
-          (g.after ? '<span class="b-sub">そのあと ' + esc(g.after) + '</span>' : '') + '</span></div>';
+          (g.min || g.after ? '<span class="b-sub">' + (g.min ? '<span class="nw t-min">歩いて' + esc(g.min) + '</span>' : '') + (g.min && g.after ? '　' : '') + (g.after ? '<span class="nw">そのあと ' + esc(g.after) + '</span>' : '') + '</span>' : '') + '</span></div>';
       } else if (walkBanner.waiting) main = '<div class="banner"><span class="b-txt">今いる場所を調べています…<span class="b-sub">空が見える場所だと早くわかります</span></span></div>';
       if (walkBanner.offRoute != null) {
         strips += '<div class="strip warn" role="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18v.5"/></svg>ルートから約' + walkBanner.offRoute + 'm離れています</div>';
@@ -1728,6 +1798,203 @@
       renderRadarBtn();
       if (settings.radar) radarSet(true);
     });
+  }
+  /* ---- 音楽（music.js が無い・曲の一覧が読めないときは、音楽のボタンごと出さない） ---- */
+  var NOTE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+  var PAUSE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
+  var PREV_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.5v14H6zM20 5v14L9 12z" fill="currentColor"/></svg>';
+  var NEXT_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l11-7z" fill="currentColor"/></svg>';
+  var music = { list: null, ok: false, err: '', opener: null, userPaused: false, state: '' };
+  function musicApi() {
+    var M = window.Music;
+    return M && typeof M.load === 'function' && typeof M.play === 'function' && typeof M.pause === 'function' ? M : null;
+  }
+  function musicCall(name) {
+    var M = musicApi();
+    if (!M || typeof M[name] !== 'function') return undefined;
+    try {
+      var r = M[name].apply(M, [].slice.call(arguments, 1));
+      if (r && typeof r.then === 'function') r.then(null, function (e) { musicError(e); });
+      return r;
+    } catch (e) { musicError(e); return undefined; }
+  }
+  function musicPlaying() { var M = musicApi(); try { return !!(M && M.isPlaying && M.isPlaying()); } catch (e) { return false; } }
+  function musicCur() { var M = musicApi(); try { var c = M && M.current && M.current(); return c && c.track ? c : null; } catch (e) { return null; } }
+  function musicCats() { return music.list && Array.isArray(music.list.categories) ? music.list.categories.filter(function (c) { return c && c.key && Array.isArray(c.tracks) && c.tracks.length; }) : []; }
+  function musicError(e) {
+    music.err = (e && e.messageJa) || '曲を読みこめませんでした。電波のよい所で、もう一度ためしてください。';
+    renderMusic();
+  }
+  // 通信量のめやす（曲のファイルの大きさが一覧にあればそこから。無ければ 1分で約1MB）
+  function musicMbPerMin() {
+    var bytes = 0, sec = 0;
+    musicCats().forEach(function (c) {
+      c.tracks.forEach(function (t) {
+        var b = t.sizeBytes || t.bytes || t.size;
+        if (isFinite(b) && b > 0 && isFinite(t.durationSec) && t.durationSec > 0) { bytes += +b; sec += +t.durationSec; }
+      });
+    });
+    if (!(sec > 60)) return 1;
+    var mb = bytes / 1e6 / sec * 60;
+    return mb >= 0.95 ? Math.round(mb) : Math.max(0.1, Math.round(mb * 10) / 10);
+  }
+  function musicInit() {
+    var M = musicApi();
+    if (!M) return;
+    var p;
+    try { p = M.load(); } catch (e) { return; }
+    if (!p || typeof p.then !== 'function') return;
+    p.then(function (list) {
+      music.list = list || null;
+      music.ok = musicCats().length > 0;
+      if (!music.ok) return;
+      try { if (typeof M.setVolume === 'function') M.setVolume(settings.musicVol); } catch (e) {}
+      if (typeof M.on === 'function') {
+        try {
+          M.on('track', function () { music.err = ''; renderMusic(); });
+          M.on('state', function (e) { music.state = e && e.state || ''; if (music.state === 'playing') music.err = ''; renderMusic(); });
+          M.on('error', function (e) {
+            musicError(e);
+            if ($('#musicSheet').hidden && e && (e.code === 'blocked' || e.code === 'allfailed' || e.code === 'network')) toast(e.code === 'blocked' ? '音楽を流せませんでした。もう一度 ▶ を押してください' : '音楽を読みこめませんでした');
+          });
+        } catch (e) {}
+      }
+      renderMusic();
+      renderWalkTools();
+    }, function () { music.ok = false; });
+  }
+  function musicLastCat() { var M = musicApi(); try { return M && M.lastCategory ? M.lastCategory() : null; } catch (e) { return null; } }
+  // 音量つまみが効くか（iPhone・iPad は効かないので、本体のボタンで調整してもらう）
+  function musicVolOk() { var M = musicApi(); try { return !(M && typeof M.volumeSupported === 'function' && !M.volumeSupported()); } catch (e) { return true; } }
+  function musicVolNow() { var M = musicApi(); try { var v = M && M.getVolume ? M.getVolume() : NaN; return isFinite(v) ? clamp(v, 0, 1) : settings.musicVol; } catch (e) { return settings.musicVol; } }
+  function musicCatName(key) {
+    var c = musicCats().filter(function (x) { return x.key === key; })[0];
+    return c ? c.nameJa || '' : '';
+  }
+  function renderMusic() {
+    var on = music.ok, cur = on ? musicCur() : null, playing = on && musicPlaying();
+    // 歩く画面のボタン・入力画面の入口・設定の出典
+    var b = $('#btnMusic');
+    b.hidden = !on;
+    b.innerHTML = NOTE_SVG + '<span class="nw">音楽</span>';
+    b.setAttribute('aria-label', playing ? '音楽（再生中）' : '音楽');
+    $('#musicFormRow').hidden = !on;
+    $('#btnMusicForm').innerHTML = NOTE_SVG + (playing ? '音楽を再生中（曲を変える）' : '散歩しながら音楽を聞く');
+    $('#musicCreditLine').hidden = !on;
+    // 再生中の小さな帯（どの画面でも出す。止めるとき・曲を変えるときに使う）
+    var pill = $('#musicPill');
+    pill.hidden = !(cur && (playing || music.userPaused));
+    if (!pill.hidden) {
+      pill.classList.toggle('paused', !playing);
+      var t = cur.track;
+      $('#mpOpen').innerHTML = NOTE_SVG + '<span class="mp-txt"><b>' + esc(t.title || '') + '</b>' + (t.artist ? ' ・ ' + esc(t.artist) : '') + '</span>';
+      $('#mpOpen').setAttribute('aria-label', '音楽の画面を開く：' + (t.title || '') + (playing ? '（再生中）' : '（一時停止中）'));
+      $('#mpPlay').innerHTML = playing ? PAUSE_SVG : PLAY_SVG;
+      $('#mpPlay').setAttribute('aria-label', playing ? '一時停止' : '再生');
+    }
+    if (!$('#musicSheet').hidden) renderMusicSheet();
+  }
+  function renderMusicSheet() {
+    var cur = musicCur(), playing = musicPlaying(), sel = cur ? cur.categoryKey : (musicLastCat() || settings.musicCat);
+    var cats = musicCats();
+    if (!cats.some(function (c) { return c.key === sel; })) sel = null;
+    var t = cur && cur.track;
+    var mb = musicMbPerMin();
+    var h = '<div class="ms-head"><h2 id="msTitle">散歩の音楽</h2><button type="button" class="ms-close" data-ms="close" aria-label="閉じる">×</button></div>' +
+      '<div class="ms-cats" role="group" aria-label="曲の種類">' + cats.map(function (c) {
+        return '<button type="button" class="ms-cat" data-ms-cat="' + esc(c.key) + '" aria-pressed="' + (c.key === sel) + '"><b>' + esc(c.nameJa || c.key) + '</b>' + (c.descJa ? '<small>' + esc(c.descJa) + '</small>' : '') + '</button>';
+      }).join('') + '</div>' +
+      '<div class="ms-now" aria-live="polite">' + (t ? '<div class="t">' + esc(t.title || '') + '</div><div class="a">' + (music.state === 'loading' && playing ? '読みこんでいます…' : esc(t.artist || '') + (cur.categoryKey ? '（' + esc(musicCatName(cur.categoryKey)) + '）' : '')) + '</div>'
+        : '<div class="a">上から曲の種類を選ぶと、音楽が始まります</div>') + '</div>' +
+      '<div class="ms-ctrl">' +
+        '<button type="button" data-ms="prev" aria-label="前の曲"' + (t ? '' : ' disabled') + '>' + PREV_SVG + '</button>' +
+        '<button type="button" class="ms-play" data-ms="play" aria-label="' + (playing ? '一時停止' : '再生') + '">' + (playing ? PAUSE_SVG : PLAY_SVG) + '</button>' +
+        '<button type="button" data-ms="next" aria-label="次の曲"' + (t ? '' : ' disabled') + '>' + NEXT_SVG + '</button></div>' +
+      (musicVolOk() ? '<label class="ms-vol"><span class="nw">音量</span><input type="range" id="msVol" min="0" max="100" step="5" value="' + Math.round(musicVolNow() * 100) + '"></label>'
+        : '<p class="ms-note">音量は、スマホ本体の音量ボタンで調整してください。</p>') +
+      (music.err ? '<p class="ms-err" role="alert">' + esc(music.err) + '</p>' : '') +
+      '<p class="ms-note ear">周りの音が聞こえる音量で聞きましょう。車や自転車の音に気をつけてください。</p>' +
+      '<p class="ms-note">通信するのは、音楽をかけている間だけです（1分で約' + mb + 'MB・1時間で約' + Math.round(mb * 60) + 'MB）。Wi-Fi の無い所では、スマホの通信量にご注意ください。</p>' +
+      '<p class="ms-note"><button type="button" class="btn-link" data-ms="credits">曲の出典</button>（作者と、使ってよい条件）</p>';
+    var card = $('#msCard'), fo = document.activeElement, foKey = fo && card.contains(fo) ? (fo.getAttribute('data-ms') || fo.getAttribute('data-ms-cat') || fo.id) : null;
+    card.innerHTML = h;
+    if (foKey) { // 作り直しても、押していたボタンにフォーカスを戻す
+      var back = card.querySelector('[data-ms="' + foKey + '"],[data-ms-cat="' + foKey + '"],#' + foKey);
+      if (back) back.focus();
+    }
+  }
+  function openMusicSheet() {
+    if (!music.ok) return;
+    music.opener = document.activeElement;
+    $('#musicSheet').hidden = false;
+    renderMusicSheet();
+    var c = $('#msCard .ms-close'); if (c) c.focus();
+  }
+  function closeMusicSheet() {
+    $('#musicSheet').hidden = true;
+    if (music.opener && document.contains(music.opener) && music.opener.offsetParent) { try { music.opener.focus(); } catch (e) {} }
+    music.opener = null;
+  }
+  function musicStartCat(key) {
+    settings.musicCat = key; saveSettings();
+    music.err = ''; music.userPaused = false;
+    musicCall('play', key, { shuffle: true });
+    renderMusic();
+  }
+  function musicToggle() {
+    var cur = musicCur();
+    if (musicPlaying()) { music.userPaused = true; musicCall('pause'); }
+    else if (cur) { music.userPaused = false; music.err = ''; musicCall('resume'); }
+    else {
+      var cats = musicCats(), key = settings.musicCat && cats.some(function (c) { return c.key === settings.musicCat; }) ? settings.musicCat : (cats[0] && cats[0].key);
+      if (key) { musicStartCat(key); return; }
+    }
+    renderMusic();
+  }
+  function musicCreditItems() {
+    var list = null;
+    try { list = window.Music && typeof window.Music.credits === 'function' ? window.Music.credits() : null; } catch (e) { list = null; }
+    if (!Array.isArray(list) || !list.length) { // 出典の一覧が取れないときは、曲の一覧から作る
+      list = [];
+      musicCats().forEach(function (c) { c.tracks.forEach(function (t) { list.push(t); }); });
+    }
+    return list;
+  }
+  function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : ''; }
+  function showMusicCredits() {
+    var items = musicCreditItems().map(function (c) {
+      if (typeof c === 'string') return '<li>' + esc(c) + '</li>';
+      if (!c) return '';
+      var lic = c.license || c.licenseJa || '', lu = safeUrl(c.licenseUrl), su = safeUrl(c.sourceUrl || c.url);
+      // 表示文（attributionJa）はそのまま出し、ライセンスと曲のページへのリンクを添える（CC BY の決まり）
+      var head = c.attributionJa ? esc(c.attributionJa) : '<b>' + esc(c.title || '') + '</b>' + (c.artist ? ' ／ ' + esc(c.artist) : '') + (lic ? '（' + esc(lic) + '）' : '');
+      var links = [];
+      if (lu) links.push('<a href="' + esc(lu) + '" target="_blank" rel="noopener">ライセンス（' + esc(lic || '条件') + '）</a>');
+      if (su) links.push('<a href="' + esc(su) + '" target="_blank" rel="noopener">曲のページ</a>');
+      return '<li>' + head + (links.length ? '<br>' + links.join('・') : '') + '</li>';
+    }).join('');
+    openModal({
+      title: '曲の出典',
+      bodyHtml: '<p>アプリの中の音楽は、作者が自由に使ってよいと決めている曲（クリエイティブ・コモンズなど）です。</p><ul class="ms-credits">' + (items || '<li>出典の一覧を読みこめませんでした</li>') + '</ul>',
+      actions: [{ label: '閉じる', kind: 'btn-primary' }]
+    });
+  }
+  // 音声案内の間だけ、音楽を小さくする（話し終わったら元に戻す。終わりの合図が来ないときのために時間でも戻す）
+  var duck = { seq: 0, on: false, timer: null };
+  function musicDuck(on) {
+    if (duck.on === on) return;
+    duck.on = on;
+    musicCall('duck', on);
+  }
+  function duckForSpeech(u, text) {
+    var my = ++duck.seq;
+    clearTimeout(duck.timer); duck.timer = null;
+    if (!music.ok || !musicPlaying()) { musicDuck(false); return; }
+    musicDuck(true);
+    var release = function () { if (my !== duck.seq) return; clearTimeout(duck.timer); duck.timer = null; musicDuck(false); };
+    u.onend = release; u.onerror = release;
+    duck.timer = setTimeout(release, Math.min(20000, 3000 + String(text).length * 250));
   }
   /* ---- いつものコース（courses.js が無いときは出さない） ---- */
   function coursesFeature() { return !!(window.WalkCourses && typeof window.WalkCourses.list === 'function' && typeof window.WalkCourses.save === 'function'); }
@@ -2260,10 +2527,26 @@
     try {
       navigator.wakeLock.request('screen').then(function (wl) {
         wakeLock = wl;
-        $('#keepOnText').textContent = '歩いている間は、画面が自動で消えないようにしています。電源ボタンで画面を消すと、歩いた道を記録できなくなるので注意してください。';
+        renderKeepOn(state.walk && state.walk.lastState);
         wl.addEventListener && wl.addEventListener('release', function () { wakeLock = null; });
       }).catch(function () {});
     } catch (e) {}
+  }
+  // 歩く画面のいちばん下の「画面について」の説明
+  function renderKeepOn(s) {
+    var t;
+    if (gapFillOn(s)) t = '画面を消しても、歩いた道はあとで足して記録します。ただし画面が消えている間は、曲がり角の案内と音声は止まります。';
+    else if (wakeLock) t = '歩いている間は、画面が自動で消えないようにしています。電源ボタンで画面を消すと、歩いた道を記録できなくなるので注意してください。';
+    else t = '歩いている間は、画面を消さないでください。画面が消えると、歩いた道を記録できなくなります。';
+    var el = $('#keepOnText');
+    if (el.textContent !== t) el.textContent = t;
+  }
+  // はじめて歩くときだけ出す1行のヒント（×で閉じたら二度と出さない）
+  function renderPocketTip(s) {
+    var el = $('#pocketTip');
+    var show = gapFillOn(s) && !settings.tipPocketSeen;
+    if (el.hidden === !show) return;
+    el.hidden = !show;
   }
   function releaseWakeLock() {
     if (wakeLock) { try { wakeLock.release(); } catch (e) {} }
@@ -2295,7 +2578,8 @@
       cum: cumulative(route.coords), finished: false, tracker: null, view: {}, lastState: null,
       start: { lat: q.start.lat, lng: q.start.lng }, courseId: opt.courseId || q.courseId || null, resumed: !!snap,
       voice: {}, voiceOff: false, shortcut: null,
-      offSeen: snap && snap.screenOff && snap.screenOff.lastGapEndedAt || null
+      offSeen: snap && snap.screenOff && snap.screenOff.lastGapEndedAt || null,
+      fillSeen: gapFillKey(snap && snap.lastGapFill)
     };
     state.walk = w;
     walkBanner = { offRoute: null, weak: false, error: null, waiting: true };
@@ -2306,6 +2590,8 @@
       onError: function (msg) { if (state.walk === w && !w.finished) { walkBanner.error = msg || '今いる場所を調べられません。'; renderBanners(); } }
     };
     if (snap) opts.resumeFrom = snap;
+    // 画面が消えていた間の穴うめで、道に沿った線を出すのに使う（無ければ walk.js が「まっすぐ」で代用する）
+    if (window.RouteEngine && typeof window.RouteEngine.routeBetween === 'function') opts.routeBetween = function (a, b, o) { return window.RouteEngine.routeBetween(a, b, o); };
     if (DEV.simulate && typeof window.WalkTracker.simulateGeolocation === 'function') {
       var simFrom = snap && snap.usedShortcut && snap.route ? snap.route.coords : route.coords;
       opts.geolocation = w.devGeo = devGeolocation(simFrom);
@@ -2326,6 +2612,7 @@
     resetWalkStats(snap);
     renderWalkTools();
     hideScreenOff();
+    renderKeepOn(null);
     $('#wPace').hidden = true;
     state.following = true;
     setCollapsed(false);
@@ -2397,7 +2684,9 @@
     vb.innerHTML = SPEAKER_SVG(settings.voice) + '<span class="nw">音声案内</span> <span class="nw">' + (settings.voice ? 'オン' : 'オフ') + '</span>';
     sb.hidden = !shortcutFeature(w);
     if (!sb.hidden) sb.lastChild.textContent = w.shortcut ? '近道を探しなおす' : '近道で帰る';
-    $('#walkTools').hidden = vb.hidden && sb.hidden;
+    var mb = $('#btnMusic');
+    mb.hidden = !(music && music.ok);
+    $('#walkTools').hidden = vb.hidden && sb.hidden && mb.hidden;
     var leg = $('#walkLegend .lg-skip');
     if (leg) leg.hidden = !settings.showSkipped;
   }
@@ -2420,6 +2709,7 @@
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'ja-JP'; u.rate = 1; u.pitch = 1;
       var v = jaVoice(); if (v) u.voice = v;
+      duckForSpeech(u, text);
       window.speechSynthesis.speak(u);
     } catch (e) {}
   }
@@ -2492,15 +2782,33 @@
     if (ms < 60000) return '約' + Math.max(10, Math.round(ms / 10000) * 10) + '秒間';
     return '約' + fmtMinutes(ms / 60000) + '間';
   }
+  // walk.js が「画面が消えていた間の穴うめ」に対応しているか（state に gapFilledMeters があるか）
+  function gapFillOn(s) { return !!(s && typeof s.gapFilledMeters === 'number'); }
+  function gapFillKey(f) { return f && f.mode ? [f.at, f.mode, Math.round(f.meters || 0)].join('|') : null; }
+  function gapFillText(f) {
+    if (f.mode === 'none') return '乗り物で移動したようなので、この間は記録していません';
+    var how = f.mode === 'route' ? 'ルートどおりに歩いたとして' : f.mode === 'path' ? '実際に通った道で' : 'まっすぐの距離で';
+    var head = f.gapMs >= 10000 ? '画面が消えていた' + gapText(f.gapMs) + 'の ' : '画面が消えていた間の ';
+    return head + fmtDist(Math.max(10, Math.round((f.meters || 0) / 10) * 10)) + ' を、' + how + '記録しました';
+  }
+  function showOffNote(text) {
+    $('#screenOffText').textContent = text;
+    $('#screenOffNote').hidden = false;
+    clearTimeout(offTimer);
+    offTimer = setTimeout(hideScreenOff, 15000);
+  }
   function checkScreenOff(w, s) {
+    var f = s.lastGapFill, fk = gapFillKey(f);
+    if (fk && fk !== w.fillSeen) {
+      w.fillSeen = fk;
+      if (f.mode === 'route' || f.mode === 'path' || f.mode === 'straight' || f.mode === 'none') showOffNote(gapFillText(f));
+    }
     var so = s.screenOff;
     if (!so || !so.lastGapEndedAt || so.lastGapEndedAt === w.offSeen) return;
     w.offSeen = so.lastGapEndedAt;
     if (!(so.lastGapMs >= 15000)) return;
-    $('#screenOffText').textContent = '画面が消えていた' + gapText(so.lastGapMs) + 'は、位置を測れていませんでした';
-    $('#screenOffNote').hidden = false;
-    clearTimeout(offTimer);
-    offTimer = setTimeout(hideScreenOff, 10000);
+    if (gapFillOn(s)) return; // 穴うめできる walk.js では、穴うめの知らせだけ出す（動いていなければ何も出さない）
+    showOffNote('画面が消えていた' + gapText(so.lastGapMs) + 'は、位置を測れていませんでした');
   }
   function hideScreenOff() { clearTimeout(offTimer); $('#screenOffNote').hidden = true; }
 
@@ -2632,7 +2940,8 @@
   function turnGuide(s) {
     var t = s.nextTurn;
     if (t && isFinite(t.distanceMeters)) {
-      var g = { dir: t.dir, dist: turnDistText(t.distanceMeters), act: t.textJa || DIR_TEXT[t.dir] || '曲がる', soon: t.distanceMeters <= 30, after: null };
+      var g = { dir: t.dir, dist: turnDistText(t.distanceMeters), act: t.textJa || DIR_TEXT[t.dir] || '曲がる', soon: t.distanceMeters <= 30, after: null,
+        min: t.distanceMeters > 30 ? '約' + Math.max(1, Math.round(t.distanceMeters / speedMpm())) + '分' : null }; // 歩く速さの設定から、曲がり角までの時間のめやす
       var a = s.turnAfter;
       if (a && isFinite(a.distanceMeters) && a.distanceMeters - t.distanceMeters <= 150) g.after = DIR_SHORT[a.dir] || a.textJa || '';
       return g;
@@ -2672,6 +2981,8 @@
     updateWalkPoi(s);
     renderPace(s);
     checkScreenOff(w, s);
+    renderKeepOn(s);
+    renderPocketTip(s);
 
     if (!map) return;
     var v = w.view;
@@ -2789,7 +3100,10 @@
     var ls = w.lastState || {};
     statsHtml += splitsHtml(summary && summary.splits || ls.splits, summary && isFinite(summary.avgPaceSecPerKm) ? summary.avgPaceSecPerKm : ls.avgPaceSecPerKm);
     var offMs = summary && isFinite(summary.screenOffMs) ? summary.screenOffMs : (ls.screenOff && ls.screenOff.totalMs) || 0;
-    if (offMs >= 15000) statsHtml += '<p class="off-note">画面が消えていた時間（合計 ' + gapText(offMs).replace(/間$/, '') + '）は、位置を測れていませんでした。</p>';
+    var filledM = summary && isFinite(summary.gapFilledMeters) ? summary.gapFilledMeters : (isFinite(ls.gapFilledMeters) ? ls.gapFilledMeters : null);
+    if (filledM != null) { // 穴うめできる walk.js：足した分があるときだけ小さく書く
+      if (filledM > 0) statsHtml += '<p class="off-note">このうち約' + fmtDist(Math.max(10, Math.round(filledM / 10) * 10)) + 'は、画面が消えていた間の道をおしはかって足しています。</p>';
+    } else if (offMs >= 15000) statsHtml += '<p class="off-note">画面が消えていた時間（合計 ' + gapText(offMs).replace(/間$/, '') + '）は、位置を測れていませんでした。</p>';
     var after = function (toHistory) {
       state.walk = null;
       walkBanner = { offRoute: null, weak: false, error: null, waiting: false };
@@ -3252,6 +3566,31 @@
   });
   $('#btnShortcut').addEventListener('click', askShortcut);
   $('#btnOffClose').addEventListener('click', hideScreenOff);
+  $('#btnMusic').addEventListener('click', openMusicSheet);
+  $('#btnMusicForm').addEventListener('click', openMusicSheet);
+  $('#mpOpen').addEventListener('click', openMusicSheet);
+  $('#mpPlay').addEventListener('click', musicToggle);
+  $('#btnMusicCredits').addEventListener('click', showMusicCredits);
+  $('#musicSheet').addEventListener('click', function (e) {
+    if (e.target === $('#musicSheet')) { closeMusicSheet(); return; }
+    var c = e.target.closest('[data-ms-cat]');
+    if (c) { musicStartCat(c.getAttribute('data-ms-cat')); return; }
+    var b = e.target.closest('[data-ms]');
+    if (!b || b.disabled) return;
+    var k = b.getAttribute('data-ms');
+    if (k === 'close') closeMusicSheet();
+    else if (k === 'play') musicToggle();
+    else if (k === 'next') { music.userPaused = false; music.err = ''; musicCall('next'); renderMusic(); }
+    else if (k === 'prev') { music.userPaused = false; music.err = ''; musicCall('prev'); renderMusic(); }
+    else if (k === 'credits') showMusicCredits();
+  });
+  $('#musicSheet').addEventListener('input', function (e) {
+    if (e.target.id !== 'msVol') return;
+    settings.musicVol = clamp(+e.target.value / 100, 0, 1);
+    musicCall('setVolume', settings.musicVol);
+  });
+  $('#musicSheet').addEventListener('change', function (e) { if (e.target.id === 'msVol') saveSettings(); });
+  $('#btnTipClose').addEventListener('click', function () { settings.tipPocketSeen = true; saveSettings(); $('#pocketTip').hidden = true; });
   $('#btnAllCourses').addEventListener('click', openAllCourses);
   $('#btnHomeHere').addEventListener('click', homeFromHere);
   $('#btnHomeMap').addEventListener('click', function () {
@@ -3271,6 +3610,7 @@
     });
   });
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('#musicSheet').hidden && $('#modal').hidden) { closeMusicSheet(); return; }
     if (e.key === 'Escape') { if (!$('#modal').hidden) { /* 閉じるボタンで閉じる */ } else if (state.pick) cancelPick(); }
   });
 
@@ -3394,6 +3734,7 @@
       else if (state.tab === 'search' && state.searchView === 'form') wxFetchForStart();
     }, 60000);
     radarProbe();
+    musicInit();
   }
   try { init(); } catch (e) {
     var box = $('#moduleError');

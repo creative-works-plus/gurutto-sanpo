@@ -86,6 +86,10 @@
 
   .credit { font-size: 15px; color: var(--ink-2); line-height: 1.8; }
   .credit ul { margin: 0; padding-left: 1.2em; }
+  .credit details { margin-top: 10px; }
+  .credit summary { cursor: pointer; font-weight: 700; color: var(--ink); min-height: 44px; display: flex; align-items: center; }
+  .credit details li { overflow-wrap: anywhere; }
+  .credit details li a { white-space: nowrap; }
   .bottom-cta { background: var(--primary-soft); padding: 30px 0 34px; margin-top: 36px; text-align: center; }
   .bottom-cta p { margin: 0 0 14px; font-weight: 700; }
   .bottom-cta .btn-go { margin: 0 auto; }
@@ -155,7 +159,8 @@
         <li class="feat"><h3>出発した場所か、家に戻る</h3><p>ぐるっと一周して出発地点に戻るコースのほか、外出先から歩いて家に帰るコースも作れます。</p></li>
         <li class="feat"><h3>坂道が少ないコースがわかる</h3><p>ルートごとに「平ら」「少し坂あり」「坂が多い」と上りの合計を出すので、坂道の少ないコースを選べます。</p></li>
         <li class="feat"><h3>トイレ・コンビニを地図に</h3><p>ルート沿いのトイレとコンビニを地図に出し、歩いている間も「この先のトイレ：約300m先」とお知らせします。</p></li>
-        <li class="feat"><h3>曲がり角の案内と音声</h3><p>次に曲がる所を文字で大きく出します。音声案内は使う・使わないを選べます。</p></li>
+        <li class="feat"><h3>曲がり角の案内と音声</h3><p>次に曲がる所と、そこまで歩いて約何分かを文字で大きく出します。音声案内は使う・使わないを選べます。</p></li>
+        <li class="feat"><h3>歩きながら音楽</h3><p>「元気が出る」「集中できる」「のんびり散歩」から選んで、散歩に合う音楽を流せます。音声案内の間は音楽を小さくします。</p></li>
         <li class="feat"><h3>近道で帰る</h3><p>疲れたら、ボタン1つで今いる場所からゴールまでの近道に切りかえられます。</p></li>
         <li class="feat"><h3>いつものコース</h3><p>気に入ったコースを保存して、次からはボタン1つで出発できます。</p></li>
         <li class="feat"><h3>記録・グラフ・カレンダー</h3><p>歩いた日をカレンダーに○で残し、週・月の合計や連続して歩いた日数、目標まであと何kmかを出します。</p></li>
@@ -196,7 +201,8 @@
       </details>
       <details>
         <summary>歩いている間、画面は点けたままにする必要がありますか？</summary>
-        <div><p>はい。ブラウザで動くアプリなので、画面を消すと位置を測れなくなります。歩いている間は画面が自動で消えないようにしています。電源ボタンで画面を消すと、その間の道は記録されません（あとで「画面が消えていた約3分間は、位置を測れていませんでした」とお知らせします）。</p></div>
+        <div><p>いいえ。画面を消してポケットに入れても大丈夫です。画面が消えている間の道は、次に画面をつけたときに、ルートや実際の道から足して記録します（「画面が消えていた約3分間の 320m を、ルートどおりに歩いたとして記録しました」のようにお知らせします）。</p>
+        <p>ただし、画面が消えている間は曲がり角の案内と音声案内が止まります。案内の帯に「歩いて約◯分」と出るので、曲がり角の少し前に画面をつけてください。乗り物に乗ったときのように大きく移動した間は、記録に足しません。</p></div>
       </details>
       <details>
         <summary>歩いた記録はどこに保存されますか？</summary>
@@ -208,6 +214,10 @@
       <details>
         <summary>iPhone でも Android でも使えますか？</summary>
         <div><p>どちらでも使えます。iPhone は Safari、Android は Chrome での利用をおすすめします。パソコンのブラウザでもルートを探せます。ホーム画面に追加しておくと、アプリのようにすぐ開けます。</p></div>
+      </details>
+      <details>
+        <summary>音楽を流すと通信量はかかりますか？</summary>
+        <div><p>音楽をかけている間だけ、1分で約1MB（1時間で約60MB）の通信をします。音楽を止めているときは通信しません。Wi-Fi の無い所では、スマホの通信量にご注意ください。周りの音が聞こえる音量で聞きましょう。</p></div>
       </details>
       <details>
         <summary>地図や道のデータはどこのものですか？</summary>
@@ -232,10 +242,40 @@
         <li>住所検索：<a href="https://msearch.gsi.go.jp/" target="_blank" rel="noopener">国土地理院 住所検索</a></li>
         <li>天気・降水確率・雨雲レーダー・注意報・警報：<a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁ホームページ</a>（データを加工して表示しています）</li>
         <li>天気を出す場所の市区町村名：国土地理院</li>
+        <li>音楽：Kevin MacLeod（<a href="https://incompetech.com/" target="_blank" rel="noopener">incompetech.com</a>）・<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>（曲ごとの表示は下の一覧と、アプリの音楽の画面の「曲の出典」にあります）</li>
         <li>地図の表示：<a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a></li>
       </ul>
+      <details id="musicCredits" hidden>
+        <summary>曲ごとの出典</summary>
+        <ul id="musicCreditList"></ul>
+      </details>
     </div>
   </section>
+
+  <script>
+  // 曲ごとの出典を music/list.json から出す（読めなければ何も出さない）
+  (function () {
+    if (!window.fetch) return;
+    function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function url(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : ''; }
+    fetch('music/list.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !Array.isArray(d.categories)) return;
+      var seen = {}, html = '';
+      d.categories.forEach(function (c) {
+        (c.tracks || []).forEach(function (t) {
+          var id = t.id || t.file; if (!t || seen[id]) return; seen[id] = true;
+          var lu = url(t.licenseUrl), su = url(t.sourceUrl);
+          html += '<li>' + esc(t.attributionJa || ('「' + (t.title || '') + '」' + (t.artist || '') + '（' + (t.license || '') + '）')) +
+            (lu ? '・<a href="' + esc(lu) + '" target="_blank" rel="noopener">ライセンス</a>' : '') +
+            (su ? '・<a href="' + esc(su) + '" target="_blank" rel="noopener">曲のページ</a>' : '') + '</li>';
+        });
+      });
+      if (!html) return;
+      document.getElementById('musicCreditList').innerHTML = html;
+      document.getElementById('musicCredits').hidden = false;
+    }).catch(function () {});
+  })();
+  </script>
 
   <div class="bottom-cta">
     <div class="wrap">

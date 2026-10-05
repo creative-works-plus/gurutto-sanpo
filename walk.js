@@ -47,6 +47,10 @@
   var AUTOSAVE_MS = 10000;       // 途中の状態を保存する間隔
   var AUTOSAVE_TRACK_CAP = 1500; // 保存する足あとの点の上限
   var ACTIVE_KEY = 'sanpo.activeWalk';
+  var GAP_FILL_MIN_M = 30;       // すき間のあと、前の位置からこれ以上はなれていたら穴うめする
+  var GAP_FILL_MAX_SPEED = 2.5;  // m/s（時速9km）これをこえる速さなら乗り物とみなして穴うめしない
+  var GAP_FILL_COVER_M = 20;     // 穴うめした線からこの距離以内の元のルートを「歩いた」にする
+  var GAP_FILL_WAIT_MS = 15000;  // routeBetween の答えを待つ上限（こえたらまっすぐで代用）
   var TICK_MS = 1000;
 
   function hav(lat1, lng1, lat2, lng2) {
@@ -187,6 +191,11 @@
     var offWalk = 0;          // ルートに合わなかった間に歩いた距離（探索窓を広げる）
     var fallback = null;      // 全体検索の候補 {p, count}
     var reached = false, goalFired = false;
+    var refOnRoute = false;   // 最後に採用した測位がルートの上（ずれ判定の内側）だったか
+    var pending = null;       // 答えを待っている穴うめ
+    var lastGapFill = null;   // {at, gapMs, meters, mode}
+    var gapFilledMeters = 0;
+    var routeBetween = typeof opts.routeBetween === 'function' ? opts.routeBetween : null;
 
     // ペース（時間は測位のタイムスタンプで測る）
     var splits = [];
@@ -229,6 +238,17 @@
         screenOff.totalMs = num(resume.screenOff.totalMs, 0);
         screenOff.lastGapMs = num(resume.screenOff.lastGapMs, 0);
         screenOff.lastGapEndedAt = num(resume.screenOff.lastGapEndedAt, null);
+      }
+      gapFilledMeters = num(resume.gapFilledMeters, 0);
+      if (resume.lastGapFill && typeof resume.lastGapFill === 'object') lastGapFill = resume.lastGapFill;
+      if (resume.pendingGap && resume.pendingGap.from && resume.pendingGap.to) {
+        var pg = resume.pendingGap;
+        pending = {
+          from: pg.from, to: pg.to, wGap: num(pg.wGap, walked), trackIdx: num(pg.trackIdx, track.length),
+          pBefore: num(pg.pBefore, 0), d: num(pg.d, hav(pg.from.lat, pg.from.lng, pg.to.lat, pg.to.lng)),
+          replay: Array.isArray(pg.replay) ? pg.replay : [], samples: Array.isArray(pg.samples) ? pg.samples : [],
+          done: false, timer: null, restored: true
+        };
       }
       if (resume.position && isFinite(resume.position.lat) && isFinite(resume.position.lng)) {
         position = { lat: resume.position.lat, lng: resume.position.lng, accuracy: num(resume.position.accuracy, 30) };
@@ -284,11 +304,11 @@
 
     // 測位 a→b（a は無くてもよい）の道すじのうち、元のルートの近くを通った所に印を付ける。
     // 同じ道を往復するルートで取り違えないよう、進み具合の窓 [lo, hi] の中の線分だけを見る。
-    function markCoverage(a, b, accMax, lo, hi) {
+    function markCoverage(a, b, accMax, lo, hi, radFixed) {
       var g = org;
       if (g.segCount === 0) return;
       lo = Math.max(0, lo); hi = Math.min(g.len, hi);
-      var rad = Math.min(COVER_MAX_M, Math.max(COVER_RADIUS_M, accMax));
+      var rad = radFixed || Math.min(COVER_MAX_M, Math.max(COVER_RADIUS_M, accMax));
       var len = a ? Math.hypot(b.x - a.x, b.y - a.y) : 0;
       var ns = a ? Math.max(1, Math.ceil(len / 5)) : 0;
       var iLo = g.segAt(lo), iHi = g.segAt(hi);
@@ -362,7 +382,9 @@
         screenOff: { totalMs: screenOff.totalMs, lastGapMs: screenOff.lastGapMs, lastGapEndedAt: screenOff.lastGapEndedAt },
         splits: splits.map(function (s) { return { km: s.km, durationMs: s.durationMs }; }),
         currentPaceSecPerKm: currentPace(),
-        avgPaceSecPerKm: avgPace()
+        avgPaceSecPerKm: avgPace(),
+        lastGapFill: lastGapFill ? { at: lastGapFill.at, gapMs: lastGapFill.gapMs, meters: lastGapFill.meters, mode: lastGapFill.mode } : null,
+        gapFilledMeters: gapFilledMeters
       };
     }
 
@@ -414,6 +436,12 @@
         track: tr,
         position: position ? { lat: r5(position.lat), lng: r5(position.lng), accuracy: Math.round(position.accuracy) } : null,
         visitedBins: runs,
+        gapFilledMeters: Math.round(gapFilledMeters * 10) / 10,
+        lastGapFill: lastGapFill,
+        pendingGap: pending ? {
+          from: pending.from, to: pending.to, wGap: pending.wGap, trackIdx: Math.ceil(pending.trackIdx / step),
+          pBefore: pending.pBefore, d: pending.d, replay: pending.replay.slice(-50), samples: pending.samples.slice(-50)
+        } : undefined,
         splits: splits.slice(),
         spanMs: (firstTs !== null && lastTs !== null) ? lastTs - firstTs : carrySpanMs,
         kmMs: (splitT0 !== null && lastTs !== null) ? lastTs - splitT0 : carryKmMs,
@@ -591,9 +619,154 @@
       return progress >= cur.len * SHORTCUT_GOAL_RATIO || cur.len - progress < SHORTCUT_GOAL_REMAIN_M;
     }
 
+    // ---- 1km ごとの記録：w0→w1 の間に歩いた分を、時刻 t0→t1 のあいだに一定の速さで歩いたとして割りふる ----
+    function splitAdvance(w0, t0, w1, t1) {
+      var d = w1 - w0;
+      if (!(d > 0)) return;
+      while (w1 >= (splits.length + 1) * 1000) {
+        var km = splits.length + 1;
+        var frac = Math.min(1, Math.max(0, (km * 1000 - w0) / d));
+        var tc = t0 + frac * (t1 - t0);
+        splits.push({ km: km, durationMs: Math.max(0, Math.round(tc - splitT0)) });
+        splitT0 = tc;
+      }
+    }
+
+    // ---- すき間の穴うめ ----
+    function routeSlice(g, s0, s1) { // g のルートの s0〜s1（ルート上の距離）の部分の座標
+      var out = [];
+      if (g.segCount === 0 || !(s1 > s0)) return out;
+      function at(s) {
+        var i = g.segAt(s), l = g.segLen[i], t = l > 0 ? Math.min(1, Math.max(0, (s - g.cum[i]) / l)) : 0;
+        return [g.pts[i][0] + (g.pts[i + 1][0] - g.pts[i][0]) * t, g.pts[i][1] + (g.pts[i + 1][1] - g.pts[i][1]) * t];
+      }
+      out.push(at(s0));
+      for (var i = g.segAt(s0); i <= g.segAt(s1) && i < g.n; i++) {
+        if (g.cum[i] > s0 && g.cum[i] < s1) out.push([g.pts[i][0], g.pts[i][1]]);
+      }
+      out.push(at(s1));
+      return out;
+    }
+
+    function polyMeters(c) {
+      var m = 0;
+      for (var i = 1; i < c.length; i++) m += hav(c[i - 1][0], c[i - 1][1], c[i][0], c[i][1]);
+      return m;
+    }
+
+    // 穴うめした線から GAP_FILL_COVER_M 以内の「元のルート」を歩いたことにする
+    function markFillCoverage(line, pBefore) {
+      if (org.n < 2 || line.length < 2) return;
+      var lo = replaced ? 0 : pBefore - WINDOW_BACK_M;
+      var hi = replaced ? org.len : Math.max(progress, pBefore) + 30;
+      for (var i = 1; i < line.length; i++) {
+        markCoverage(
+          { x: (line[i - 1][1] - org.lng0) * org.kx, y: (line[i - 1][0] - org.lat0) * org.ky },
+          { x: (line[i][1] - org.lng0) * org.kx, y: (line[i][0] - org.lat0) * org.ky },
+          0, lo, hi, GAP_FILL_COVER_M);
+      }
+    }
+
+    // 穴うめの結果を差しこむ（足あと・距離・1kmごとの記録・ペース・歩いた道）
+    function applyFill(P, line, F, mode) {
+      if (P.done) return;
+      P.done = true;
+      if (P.timer) { clearTimeout(P.timer); P.timer = null; }
+      if (pending === P) pending = null;
+      var interior = line.length > 2 ? line.slice(1, -1) : [];
+      if (interior.length) {
+        var at = Math.min(Math.max(0, P.trackIdx), track.length);
+        track.splice.apply(track, [at, 0].concat(interior.map(function (p) { return [p[0], p[1]]; })));
+      }
+      if (F > 0) {
+        splitAdvance(P.wGap, P.from.ts, P.wGap + F, P.to.ts);
+        P.replay.forEach(function (r) { splitAdvance(r[0] + F, r[1], r[2] + F, r[3]); });
+        walked += F;
+        gapFilledMeters += F;
+        if (line.length >= 2) markFillCoverage(line, P.pBefore);
+      }
+      P.samples.forEach(function (sm) { paceSamples.push([sm[0] + F, sm[1]]); });
+      lastGapFill = { at: Date.now(), gapMs: P.to.ts - P.from.ts, meters: Math.round(F * 10) / 10, mode: mode };
+      saveActive();
+      emit();
+    }
+
+    function straightLine(P) { return [[P.from.lat, P.from.lng], [P.to.lat, P.to.lng]]; }
+
+    function fillStraight(P) { applyFill(P, straightLine(P), P.d, 'straight'); }
+
+    // 実際の道（routeBetween）で穴うめ。失敗・長すぎ・時間切れはまっすぐ
+    function startPathFill(P) {
+      if (!routeBetween) { fillStraight(P); return; }
+      var limit = Math.max(0, (P.to.ts - P.from.ts) / 1000) * GAP_FILL_MAX_SPEED;
+      P.timer = setTimeout(function () { P.timer = null; fillStraight(P); }, GAP_FILL_WAIT_MS);
+      var pr;
+      try {
+        pr = Promise.resolve(routeBetween({ lat: P.from.lat, lng: P.from.lng }, { lat: P.to.lat, lng: P.to.lng }, {}));
+      } catch (e) { fillStraight(P); return; }
+      pr.then(function (res) {
+        if (P.done) return;
+        var c = res && Array.isArray(res.coords) ? res.coords.filter(function (p) {
+          return p && isFinite(p[0]) && isFinite(p[1]);
+        }) : [];
+        var len = polyMeters(c);
+        if (c.length >= 2 && len > 0 && len <= limit) applyFill(P, c, len, 'path');
+        else fillStraight(P);
+      }, function () { if (!P.done) fillStraight(P); });
+    }
+
+    // すき間のあとの最初の位置：前の位置から GAP_FILL_MIN_M 以上はなれているとき
+    function handleGap(f, moved, prevRef) {
+      var pBefore = progress, wasOn = refOnRoute;
+      if (pending) fillStraight(pending); // 前の穴うめがまだなら、先にまっすぐで確定させる
+      var gapMs = f.ts - prevRef.ts;
+      var dtSec = Math.max(1, gapMs / 1000);
+      var limit = dtSec * GAP_FILL_MAX_SPEED;
+
+      // 足あとには今の位置を足す（距離は足さない。穴うめの距離を後から差しこむ）
+      var trackIdx = track.length;
+      lastPt = { lat: smooth.lat, lng: smooth.lng };
+      track.push([smooth.lat, smooth.lng]);
+      var wGap = walked;
+      lastTs = f.ts;
+      ref = { lat: f.lat, lng: f.lng, ts: f.ts, accuracy: f.accuracy };
+      updateRoute(f.lat, f.lng, f.accuracy, moved);
+      refOnRoute = cur.n >= 2 && !isOff;
+
+      var P = {
+        from: { lat: prevRef.lat, lng: prevRef.lng, ts: prevRef.ts },
+        to: { lat: f.lat, lng: f.lng, ts: f.ts },
+        wGap: wGap, trackIdx: trackIdx, pBefore: pBefore, d: moved,
+        replay: [], samples: [[wGap, f.ts]], done: false, timer: null
+      };
+
+      // 乗り物に乗ったとみなす：距離に入れず、かかった時間も歩いた時間から外す
+      if (moved / dtSec > GAP_FILL_MAX_SPEED) {
+        firstTs += gapMs; splitT0 += gapMs;
+        paceSamples = [[walked, f.ts]];
+        lastGapFill = { at: Date.now(), gapMs: gapMs, meters: 0, mode: 'none' };
+        if (!replaced && org.n >= 2) {
+          markCoverage(null, { x: (f.lng - org.lng0) * org.kx, y: (f.lat - org.lat0) * org.ky },
+            f.accuracy, pBefore - WINDOW_BACK_M, progress + 30);
+        }
+        return;
+      }
+
+      // 1. 前も今もルートの上で、進み具合が増えている → ルートの該当部分
+      if (wasOn && refOnRoute && progress - pBefore >= 10 && progress - pBefore <= limit) {
+        var line = routeSlice(cur, pBefore, progress);
+        var F = polyMeters(line);
+        if (line.length >= 2 && F > 0 && F <= limit) { applyFill(P, line, F, 'route'); return; }
+      }
+      // 2. ルートからずれていた → 実際の道。3. だめならまっすぐ
+      pending = P;
+      startPathFill(P);
+    }
+
     // 良い測位を採用して、距離・進み具合・ゴール判定を更新する
     function adopt(f) {
       var moved = ref ? hav(ref.lat, ref.lng, f.lat, f.lng) : 0;
+      var gapJump = !!ref && (f.ts - ref.ts) >= SCREEN_GAP_MS && moved >= GAP_FILL_MIN_M;
       position = { lat: f.lat, lng: f.lng, accuracy: f.accuracy };
 
       // 時間の起点（再開したときは前回までの分をさかのぼって引きつぐ）
@@ -612,6 +785,14 @@
         var alpha = Math.min(1, Math.max(SMOOTH_MIN_ALPHA, moved / 12));
         smooth = { lat: smooth.lat + alpha * (f.lat - smooth.lat), lng: smooth.lng + alpha * (f.lng - smooth.lng) };
       }
+
+      if (gapJump) {
+        // ふつうの足し算（まっすぐ飛んだ距離）はせず、穴うめにまかせる
+        handleGap(f, moved, ref);
+        if (!reached && goalNear(f)) reached = true;
+        return;
+      }
+
       if (!lastPt) {
         lastPt = { lat: smooth.lat, lng: smooth.lng };
         track.push([smooth.lat, smooth.lng]);
@@ -624,20 +805,19 @@
           lastPt = { lat: smooth.lat, lng: smooth.lng };
           track.push([smooth.lat, smooth.lng]);
           lastTs = f.ts;
-          paceSamples.push([walked, f.ts]);
-          // 1km ごとの記録（またいだ位置の時刻は、前の点との間で割り算して求める）
-          while (walked >= (splits.length + 1) * 1000) {
-            var km = splits.length + 1;
-            var frac = Math.min(1, Math.max(0, (km * 1000 - walkedBefore) / d));
-            var tc = tPrev + frac * (f.ts - tPrev);
-            splits.push({ km: km, durationMs: Math.max(0, Math.round(tc - splitT0)) });
-            splitT0 = tc;
+          if (pending) { // 穴うめの答え待ち：1kmごとの記録・ペースは答えが来てからまとめて
+            pending.replay.push([walkedBefore, tPrev, walked, f.ts]);
+            pending.samples.push([walked, f.ts]);
+          } else {
+            paceSamples.push([walked, f.ts]);
+            splitAdvance(walkedBefore, tPrev, walked, f.ts);
           }
         }
       }
       var prevRef = ref, pBefore = progress;
       ref = { lat: f.lat, lng: f.lng, ts: f.ts, accuracy: f.accuracy };
       updateRoute(f.lat, f.lng, f.accuracy, moved);
+      refOnRoute = cur.n >= 2 && !isOff;
       if (!replaced && org.n >= 2) {
         markCoverage(
           prevRef ? { x: (prevRef.lng - org.lng0) * org.kx, y: (prevRef.lat - org.lat0) * org.ky } : null,
@@ -772,6 +952,7 @@
         window.addEventListener('pagehide', onPageHide);
       } catch (e) {}
       lastSaveAt = Date.now();
+      if (pending && pending.restored) { pending.restored = false; startPathFill(pending); }
       emit();
     }
 
@@ -779,6 +960,7 @@
       if (summary) return summary;
       var now = Date.now();
       if (!started) { startedMs = now; startedIso = new Date(now).toISOString(); }
+      if (pending) fillStraight(pending); // 答え待ちの穴うめは、まっすぐで確定して記録に入れる
       stopped = true;
       if (watchId !== null && geo && typeof geo.clearWatch === 'function') {
         try { geo.clearWatch(watchId); } catch (e) {}
@@ -807,6 +989,7 @@
         splits: splits.map(function (s) { return { km: s.km, durationMs: s.durationMs }; }),
         avgPaceSecPerKm: avgPace(),
         usedShortcut: replaced,
+        gapFilledMeters: Math.round(gapFilledMeters),
         routeCoords: org.pts.map(function (p) { return [p[0], p[1]]; }),
         trackCoords: track.slice()
       };
