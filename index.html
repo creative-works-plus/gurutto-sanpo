@@ -488,6 +488,44 @@
   .sun-warn { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; background: #EEF0F8; border: 1px solid #B9C0DB; font-size: calc(15px * var(--fs)); line-height: 1.5; color: #232B4A; }
   .sun-warn svg { flex: 0 0 22px; height: 22px; margin-top: 1px; color: #3B4A8F; }
 
+  /* 天気・雨（weather.js が無いとき・取れないときは何も出さない） */
+  .wx-line { display: flex; align-items: center; gap: 8px; width: 100%; margin: 14px 0 0; padding: 8px 10px 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: inherit; font-size: calc(16px * var(--fs)); font-weight: 700; color: var(--ink-2); text-align: left; cursor: pointer; line-height: 1.45; }
+  .wx-line > svg { flex: 0 0 22px; height: 22px; color: #2C6CA8; }
+  .wx-line .wx-main { flex: 1; min-width: 0; }
+  .wx-line .wx-main .nw { display: inline-block; margin-right: .6em; }
+  .wx-line b { color: var(--ink); }
+  .wx-line .wx-more { flex: none; font-size: calc(14px * var(--fs)); color: var(--primary-dark); white-space: nowrap; }
+  .wx-line[aria-expanded="true"] .wx-more svg { transform: rotate(180deg); }
+  .wx-more svg { width: 14px; height: 14px; vertical-align: -2px; }
+  .wx-detail { margin: 6px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--surface); font-size: calc(15px * var(--fs)); line-height: 1.6; }
+  .wx-detail p { margin: 0 0 4px; }
+  .wx-detail .nw { display: inline-block; }
+  .wx-detail ul { list-style: none; padding: 0; margin: 2px 0 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--fs)), 1fr)); gap: 0 14px; }
+  .wx-detail li { white-space: nowrap; }
+  .wx-detail li b { margin-left: .4em; }
+  .wx-detail .wx-src { margin: 4px 0 0; font-size: calc(13px * var(--fs)); color: var(--ink-2); }
+  .sun-warn.wx-rain { background: #E6F0FA; border-color: #9DBEDF; color: #123A5E; font-weight: 700; }
+  .sun-warn.wx-rain svg { color: #2C6CA8; }
+  .sun-warn.wx-adv { background: #FFF5D1; border-color: #E2C048; color: #4A3A00; }
+  .sun-warn.wx-adv svg { color: #946F00; }
+  .sun-warn.wx-warn { background: #FDECEA; border-color: #E0958D; color: #7A1A14; font-weight: 700; }
+  .sun-warn.wx-warn svg { color: #C4271C; }
+  #wxBox:not([hidden]) + #sunBox .sun-line { margin-top: 8px; }
+  /* 地図の「雨雲」ボタン（ズームボタンの下） */
+  .map-radar {
+    position: absolute; z-index: 700; right: 10px; top: 112px; min-height: 44px; min-width: 44px; padding: 4px 10px;
+    border-radius: 8px; border: 2px solid rgba(0,0,0,.25); background: #fff; color: var(--ink); font: inherit; font-weight: 800;
+    font-size: calc(13px * var(--fs)); line-height: 1.15; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15); cursor: pointer; white-space: nowrap;
+  }
+  .map-radar svg { width: 20px; height: 20px; flex: none; color: #2C6CA8; }
+  .map-radar small { font-size: calc(12px * var(--fs)); font-weight: 700; }
+  .map-radar[aria-pressed="true"] { background: #2C6CA8; border-color: #1E5288; color: #fff; }
+  .map-radar[aria-pressed="true"] svg { color: #fff; }
+  .map-radar[hidden] { display: none; }
+  .map-radar.compact { flex-direction: row; gap: 4px; padding: 4px 8px; }
+  .map-radar.compact small { display: none; }
+
   /* いつものコース */
   .course-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
   .course-row { display: flex; align-items: center; gap: 10px; border: 2px solid var(--line); border-radius: var(--radius); padding: 8px 8px 8px 12px; background: #fff; }
@@ -595,6 +633,7 @@
   <div id="mapWrap">
     <div id="map" role="application" aria-label="地図"></div>
     <div class="map-top" id="mapTop"></div>
+    <button type="button" class="map-radar" id="btnRadar" aria-pressed="false" hidden></button>
     <button type="button" class="map-fab" id="btnRecenter" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
       現在地に戻る
@@ -650,6 +689,7 @@
           <button type="button" class="btn" id="btnGoRegister">家の場所を登録する</button>
         </div>
         <p class="hint" id="homeInfo" hidden></p>
+        <div id="wxBox" hidden></div>
         <div id="sunBox" hidden></div>
 
         <div class="sticky-cta">
@@ -826,7 +866,8 @@
           地図：© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（配信：<a href="https://tile.openstreetmap.jp/" target="_blank" rel="noopener">OpenStreetMap Japan</a>）<br>
           道・コンビニ・トイレのデータ：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors<br>
           住所検索：国土地理院<br>
-          坂の多さ：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 標高タイル</a>
+          坂の多さ：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 標高タイル</a><br>
+          天気・雨雲レーダー：<a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁ホームページ</a>（データを加工して表示）
         </p>
       </section>
     </div>
@@ -859,6 +900,7 @@
 <script src="courses.js"></script>
 <script src="elevation.js"></script>
 <script src="sun.js"></script>
+<script src="weather.js"></script>
 <script>
 (function () {
   'use strict';
@@ -960,7 +1002,7 @@
   /* ====================== 設定（localStorage） ====================== */
   var SETTINGS_KEY = 'sanpo.settings';
   var DEFAULTS = { strideCm: 70, home: null, goalType: 'start', inputMode: 'km', lastKm: 3, lastSteps: 5000, lastMin: 30,
-    walkSpeed: 80, voice: false, fontScale: 'normal', showSkipped: true, goal: null };
+    walkSpeed: 80, voice: false, fontScale: 'normal', showSkipped: true, goal: null, radar: false };
   function loadSettings() {
     var s = Object.assign({}, DEFAULTS);
     try {
@@ -976,6 +1018,7 @@
         if (typeof o.voice === 'boolean') s.voice = o.voice;
         if (o.fontScale === 'normal' || o.fontScale === 'large' || o.fontScale === 'xlarge') s.fontScale = o.fontScale;
         if (typeof o.showSkipped === 'boolean') s.showSkipped = o.showSkipped;
+        if (typeof o.radar === 'boolean') s.radar = o.radar;
         if (o.goal && (o.goal.period === 'week' || o.goal.period === 'month') && isFinite(o.goal.meters) && o.goal.meters > 0) s.goal = { period: o.goal.period, meters: +o.goal.meters };
         if (isFinite(o.lastKm) && o.lastKm > 0) s.lastKm = +o.lastKm;
         if (isFinite(o.lastSteps) && o.lastSteps > 0) s.lastSteps = +o.lastSteps;
@@ -1195,7 +1238,10 @@
       if (main || strips) html += '<div class="walk-guide">' + main + strips + '</div>';
     }
     box.innerHTML = html;
+    try { placeRadarBtn(); } catch (e) {}
   }
+  if (window.ResizeObserver) { try { new ResizeObserver(function () { placeRadarBtn(); }).observe($('#mapTop')); } catch (e) {} }
+  window.addEventListener('resize', function () { try { placeRadarBtn(); } catch (e) {} });
   $('#mapTop').addEventListener('click', function (e) {
     var b = e.target.closest('[data-act="cancel-pick"]');
     if (b) cancelPick();
@@ -1237,6 +1283,7 @@
     renderStartStatus();
     drawFormLayer();
     renderSun();
+    wxFetchForStart();
   }
   function startGpsWatch() {
     if (DEV.start) {
@@ -1463,6 +1510,7 @@
     return { line: line, darkNow: darkNow, darkLater: darkLater };
   }
   function renderSun() {
+    try { renderWeather(); } catch (e) {}
     var box = $('#sunBox');
     if (!box) return;
     var info = sunInfo(new Date());
@@ -1474,6 +1522,212 @@
         : '歩き終わるころには暗くなります。明るい道を選び、ライトを持って出かけましょう') + '</span></p>';
     }
     box.innerHTML = html; box.hidden = false;
+  }
+  /* ---- 天気・雨（weather.js が無いとき・取れないときは、何も出さずに静かに隠す） ---- */
+  var WX_TTL = 10 * 60000;
+  var wx = { info: null, key: '', at: 0, ctrl: null, open: false };
+  var CLOUD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 9.5 4.3 4.3 0 0 0 7 18z"/></svg>';
+  var UMBRELLA_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 12v7a2 2 0 0 1-4 0"/><path d="M12 3v0"/></svg>';
+  var ALERT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>';
+  var CHEVRON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  function weatherFeature() { return !!(window.Weather && typeof window.Weather.get === 'function'); }
+  function wxFetch(lat, lng, force, cb) {
+    if (!weatherFeature() || !isFinite(lat) || !isFinite(lng)) return;
+    var key = lat.toFixed(2) + ',' + lng.toFixed(2);
+    if (!force && wx.key === key && Date.now() - wx.at < WX_TTL) { if (cb && wx.info) cb(wx.info); return; }
+    if (wx.ctrl && wx.ctrlKey === key && !force) return; // 同じ場所を問い合わせ中
+    if (wx.ctrl) { try { wx.ctrl.abort(); } catch (e) {} }
+    var ctrl = wx.ctrl = window.AbortController ? new AbortController() : { abort: function () {} };
+    wx.ctrlKey = key;
+    var p = null;
+    try { p = window.Weather.get(lat, lng, ctrl.signal ? { signal: ctrl.signal } : {}); } catch (e) { p = null; }
+    var fail = function (e) {
+      if (wx.ctrl !== ctrl) return;
+      wx.ctrl = null;
+      if (e && e.name === 'AbortError') return;
+      // 取れなかったときは天気を出さない。2分たったら、また試す
+      if (wx.key !== key) wx.info = null;
+      wx.key = key; wx.at = Date.now() - WX_TTL + 2 * 60000;
+      renderWeather();
+    };
+    if (!p || typeof p.then !== 'function') { fail(null); return; }
+    p.then(function (info) {
+      if (wx.ctrl !== ctrl) return;
+      wx.ctrl = null;
+      wx.info = info && typeof info === 'object' ? info : null; wx.key = key; wx.at = Date.now();
+      renderWeather();
+      if (cb && wx.info) cb(wx.info);
+    }, fail);
+  }
+  if (params.get('debug') === '1') window.__sanpoWx = function () { return { at: wx.at, key: wx.key, busy: !!wx.ctrl, walkAt: state.walk && state.walk.wxAt, now: Date.now() }; }; // テスト用
+  function wxFetchForStart() { if (state.start) wxFetch(state.start.lat, state.start.lng, false); }
+  function wxNum(v) { return v != null && v !== '' && isFinite(v); }
+  function wxShortArea(a) { a = String(a || '').trim(); var p = a.split(/\s+/); return p[p.length - 1] || a; }
+  function wxPops(info) {
+    var now = Date.now();
+    return (info && Array.isArray(info.pops) ? info.pops : []).filter(function (p) {
+      return p && wxNum(p.pct) && (!p.to || +new Date(p.to) > now);
+    });
+  }
+  function wxHour(d, end) { d = new Date(d); return isNaN(d) ? '' : (end && d.getHours() === 0 ? 24 : d.getHours()) + '時'; }
+  // 気をつけたい注意報だけ出す（波浪・乾燥・なだれ・霜などは散歩には関係が薄いので出さない）。警報・特別警報はすべて出す
+  var WX_ADV_RE = /大雨|洪水|雷|暴風|大雪|強風|風雪|高潮|濃霧/;
+  function wxAlerts(info) {
+    var list = info && Array.isArray(info.warnings) ? info.warnings : [], g = { emergency: [], warning: [], advisory: [] };
+    list.forEach(function (x) {
+      if (!x || !x.nameJa || !g[x.levelKey]) return;
+      if (x.levelKey === 'advisory' && !WX_ADV_RE.test(x.nameJa)) return;
+      if (g[x.levelKey].indexOf(x.nameJa) < 0) g[x.levelKey].push(x.nameJa);
+    });
+    return g;
+  }
+  // 雨の注意（ひとつだけ出す）：いま降っている → 1時間以内に降りだす → 歩く時間の降水確率が高い
+  function wxRainNote(info, minutes) {
+    var r = info && info.rain;
+    if (r && r.nowRaining) return 'いま雨が降っています' + (r.levelJa ? '（' + esc(r.levelJa) + '）' : '') + '。かさを持って行きましょう';
+    if (r && wxNum(r.startsInMin) && r.startsInMin <= 60) {
+      // レーダーの解析時刻から数えた分なので、10分きざみでおおまかに言う
+      return (r.startsInMin <= 10 ? 'まもなく' : '約' + Math.round(r.startsInMin / 10) * 10 + '分後に') + '雨が降りだしそうです。かさを持って行きましょう';
+    }
+    if (window.Weather && typeof window.Weather.rainDuring === 'function') {
+      try {
+        var d = window.Weather.rainDuring(info, new Date(), minutes);
+        if (d && d.likely) return '歩いている間に雨が降りそうです。かさを持って行きましょう' + (wxNum(d.maxPct) ? '（降水確率 ' + Math.round(d.maxPct) + '%）' : '');
+      } catch (e) {}
+    }
+    return null;
+  }
+  function wxDetailHtml(info) {
+    var h = '', t = info.today, c = info.current, r = info.rain, pops = wxPops(info);
+    if (t && (t.weatherJa || wxNum(t.maxC) || wxNum(t.minC))) {
+      h += '<p>今日：' + esc(t.weatherJa || '') + (wxNum(t.maxC) ? '　<span class="nw">最高 <b>' + Math.round(t.maxC) + '℃</b></span>' : '') + (wxNum(t.minC) ? '　<span class="nw">最低 <b>' + Math.round(t.minC) + '℃</b></span>' : '') + '</p>';
+    }
+    if (c && (c.weatherJa || wxNum(c.tempC))) {
+      h += '<p>いま：' + esc(c.weatherJa || '') + (wxNum(c.tempC) ? ' ' + Math.round(c.tempC) + '℃' : '') + (c.observedAt && !isNaN(new Date(c.observedAt)) ? '（' + fmtHM(new Date(c.observedAt)) + '）' : '') + '</p>';
+    }
+    if (r) {
+      var rt = r.nowRaining ? '降っています' + (r.levelJa ? '（' + esc(r.levelJa) + '）' : '') + (wxNum(r.stopsInMin) ? (r.stopsInMin <= 10 ? '。まもなくやみそうです' : '。約' + Math.round(r.stopsInMin / 10) * 10 + '分でやみそうです') : '')
+        : wxNum(r.startsInMin) ? (r.startsInMin <= 10 ? 'まもなく' : '約' + Math.round(r.startsInMin / 10) * 10 + '分後に') + '降りだしそうです' + (r.levelJa ? '（' + esc(r.levelJa) + '）' : '')
+        : '降らない見込みです';
+      h += '<p>これから1時間の雨：' + rt + '</p>';
+    }
+    if (pops.length) {
+      h += '<p>降水確率</p><ul>' + pops.slice(0, 4).map(function (p) {
+        return '<li>' + wxHour(p.from) + '〜' + wxHour(p.to, true) + '<b>' + Math.round(p.pct) + '%</b></li>';
+      }).join('') + '</ul>';
+    }
+    var at = info.fetchedAt && !isNaN(new Date(info.fetchedAt)) ? fmtHM(new Date(info.fetchedAt)) + ' 時点・' : '';
+    h += '<p class="wx-src">' + at + '出典：' + esc(info.sourceJa || '気象庁') + '</p>';
+    return h;
+  }
+  function renderWeather() {
+    var box = $('#wxBox');
+    if (!box) return;
+    var info = wx.info;
+    if (!weatherFeature() || !info || !state.start) { box.hidden = true; box.innerHTML = ''; return; }
+    var c = info.current, t = info.today, pops = wxPops(info);
+    var wj = (c && c.weatherJa) || (t && t.weatherJa) || '';
+    var temp = c && wxNum(c.tempC) ? Math.round(c.tempC) + '℃' : t && wxNum(t.maxC) ? '最高 ' + Math.round(t.maxC) + '℃' : '';
+    var parts = [];
+    if (info.areaNameJa) parts.push('<span class="nw">' + esc(wxShortArea(info.areaNameJa)) + '</span>');
+    if (wj || temp) parts.push('<span class="nw"><b>' + esc(wj) + (wj && temp ? ' ' : '') + esc(temp) + '</b></span>');
+    if (pops.length) parts.push('<span class="nw">降水確率 <b>' + Math.round(pops[0].pct) + '%</b></span>');
+    if (!parts.length) { box.hidden = true; box.innerHTML = ''; return; }
+    var html = '<button type="button" class="wx-line" id="wxToggle" aria-expanded="' + wx.open + '" aria-controls="wxDetail">' + CLOUD_SVG +
+      '<span class="wx-main">' + parts.join('') + '</span><span class="wx-more">' + (wx.open ? 'とじる' : 'くわしく') + ' ' + CHEVRON_SVG + '</span></button>';
+    if (wx.open) html += '<div class="wx-detail" id="wxDetail">' + wxDetailHtml(info) + '</div>';
+    var g = wxAlerts(info);
+    if (g.emergency.length) html += '<p class="sun-warn wx-warn" role="alert">' + ALERT_SVG + '<span>' + esc(g.emergency.join('・')) + 'が出ています。散歩はやめて、身の安全を守ってください</span></p>';
+    if (g.warning.length) html += '<p class="sun-warn wx-warn">' + ALERT_SVG + '<span>' + esc(g.warning.join('・')) + 'が出ています。今日は無理に出かけないようにしましょう</span></p>';
+    if (g.advisory.length) html += '<p class="sun-warn wx-adv">' + ALERT_SVG + '<span>' + esc(g.advisory.join('・')) + 'が出ています。空の様子に気をつけて歩きましょう</span></p>';
+    var m = amountMeters(), note = wxRainNote(info, isFinite(m) && m > 0 ? walkMinutes(m) : 60);
+    if (note) html += '<p class="sun-warn wx-rain">' + UMBRELLA_SVG + '<span>' + note + '</span></p>';
+    box.innerHTML = html; box.hidden = false;
+  }
+  // 歩いている間：10分ごと（と、画面に戻ったとき）に天気を取り直し、雨が近づいたら1回だけ知らせる
+  function wxWalkTick(force) {
+    var w = state.walk;
+    if (!w || w.finished || !weatherFeature()) return;
+    if (!force && w.wxAt && Date.now() - w.wxAt < WX_TTL) return;
+    w.wxAt = Date.now();
+    var p = (w.lastState && w.lastState.position) || w.start;
+    wxFetch(p.lat, p.lng, false, function (info) { if (state.walk === w && !w.finished) wxWalkCheck(w, info); });
+  }
+  function wxWalkCheck(w, info) {
+    var r = info && info.rain;
+    if (w.rainNotified || !r || r.nowRaining || !wxNum(r.startsInMin) || r.startsInMin > 30) return;
+    w.rainNotified = true;
+    toast('まもなく雨が降りそうです');
+    speak('まもなく雨が降りそうです');
+  }
+
+  /* ---- 地図の「雨雲」レーダー（Weather.radar() がタイルを返すときだけボタンを出す） ---- */
+  var radar = { info: null, layer: null, timer: null };
+  function radarCall() {
+    if (!(window.Weather && typeof window.Weather.radar === 'function')) return Promise.resolve(null);
+    var p;
+    try { p = window.Weather.radar(); } catch (e) { return Promise.resolve(null); }
+    if (!p || typeof p.then !== 'function') return Promise.resolve(null);
+    return p.then(function (r) { return r && r.tileUrl ? r : null; }, function () { return null; });
+  }
+  function renderRadarBtn() {
+    var b = $('#btnRadar'), on = !!radar.layer;
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? '雨雲を消す' : '雨雲を地図に重ねる');
+    var tl = on && radar.info && radar.info.timeLabelJa ? String(radar.info.timeLabelJa) : '', hm = tl.match(/\d{1,2}:\d{2}/);
+    b.innerHTML = CLOUD_SVG + '<span>雨雲</span>' + (tl ? '<small>' + esc(hm ? hm[0] : tl) + '</small>' : '');
+    b.title = tl;
+    placeRadarBtn();
+  }
+  // 上の案内（曲がり角など）が大きいときは、「雨雲」ボタンをその下にずらして重ならないようにする
+  function placeRadarBtn() {
+    var b = $('#btnRadar'), mt = $('#mapTop'), top = '', t = 112;
+    if (!b || b.hidden) return;
+    b.classList.remove('compact');
+    var wrap = $('#mapWrap').getBoundingClientRect();
+    if (mt && mt.firstChild) {
+      var r = mt.getBoundingClientRect(), br = b.getBoundingClientRect();
+      if (br.left < r.right && r.bottom - wrap.top + 8 > 112) { t = Math.ceil(r.bottom - wrap.top + 8); top = t + 'px'; }
+    }
+    if (b.style.top !== top) b.style.top = top;
+    // 地図の下の出典の文字にかかるときは、時刻を省いた1行の小さいボタンにする
+    var at = document.querySelector('#map .leaflet-control-attribution');
+    var limit = (at ? at.getBoundingClientRect().top : wrap.bottom - 20) - wrap.top - 6;
+    if (t + b.offsetHeight > limit) b.classList.add('compact');
+  }
+  function radarSet(on) {
+    if (!map || !radar.info) return;
+    if (on && !radar.layer) {
+      var r = radar.info;
+      radar.layer = L.tileLayer(r.tileUrl, {
+        opacity: 0.6, zIndex: 5, maxZoom: 19, maxNativeZoom: r.maxNativeZoom || r.maxZoom || 10, minNativeZoom: r.minNativeZoom || r.minZoom || 0,
+        attribution: esc(r.attributionJa || '気象庁')
+      }).addTo(map);
+      clearInterval(radar.timer);
+      radar.timer = setInterval(radarRefresh, 5 * 60000);
+    } else if (!on && radar.layer) {
+      map.removeLayer(radar.layer); radar.layer = null;
+      clearInterval(radar.timer); radar.timer = null;
+    }
+    renderRadarBtn();
+  }
+  function radarRefresh() {
+    radarCall().then(function (r) {
+      if (!r || !radar.layer) return;
+      radar.info = r;
+      if (radar.layer._url !== r.tileUrl) radar.layer.setUrl(r.tileUrl);
+      renderRadarBtn();
+    });
+  }
+  function radarProbe() {
+    if (!map) return;
+    radarCall().then(function (r) {
+      if (!r) return;
+      radar.info = r;
+      $('#btnRadar').hidden = false;
+      renderRadarBtn();
+      if (settings.radar) radarSet(true);
+    });
   }
   /* ---- いつものコース（courses.js が無いときは出さない） ---- */
   function coursesFeature() { return !!(window.WalkCourses && typeof window.WalkCourses.list === 'function' && typeof window.WalkCourses.save === 'function'); }
@@ -2017,6 +2271,7 @@
   }
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && state.walk && !state.walk.finished && !wakeLock) requestWakeLock();
+    if (document.visibilityState === 'visible') wxWalkTick(false);
   });
   window.addEventListener('beforeunload', function (e) {
     if (state.walk && !state.walk.finished) { e.preventDefault(); e.returnValue = ''; }
@@ -2077,6 +2332,7 @@
     setSearchView('walking');
     $('#screens').scrollTop = 0;
     keepWalkToolsVisible();
+    wxWalkTick(true);
     if (map) {
       // 地図がズームの動きの途中なら、終わってから歩く場所に寄せる（途中で動かすと上書きされるため）
       var goWalkView = function () { map.setView(followCenter([q.start.lat, q.start.lng], 16), 16, { animate: false }); };
@@ -2983,6 +3239,17 @@
   $('#goalPlus').addEventListener('click', function () { if (settings.goal) setGoalKm(Math.floor(settings.goal.meters / 1000) + 1); });
   $('#chkSkipped').addEventListener('change', function () { settings.showSkipped = $('#chkSkipped').checked; saveSettings(); });
   $('#btnVoice').addEventListener('click', function () { setVoice(!settings.voice); });
+  $('#wxBox').addEventListener('click', function (e) {
+    if (!e.target.closest('#wxToggle')) return;
+    wx.open = !wx.open; renderWeather();
+    var t = $('#wxToggle'); if (t) t.focus();
+  });
+  $('#btnRadar').addEventListener('click', function () {
+    var on = !radar.layer;
+    settings.radar = on; saveSettings();
+    radarSet(on);
+    if (on) radarRefresh(); // 押したときは、いちばん新しい雨雲にする
+  });
   $('#btnShortcut').addEventListener('click', askShortcut);
   $('#btnOffClose').addEventListener('click', hideScreenOff);
   $('#btnAllCourses').addEventListener('click', openAllCourses);
@@ -3121,6 +3388,12 @@
     if (!DEV.demo || DEV.demo === 'resume') checkResume();
     // 日の入りまでの時間は、入力の画面を出している間 1分ごとに出し直す
     setInterval(function () { if (state.tab === 'search' && state.searchView === 'form') renderSun(); }, 60000);
+    // 天気：入力の画面では古くなったら取り直す（10分）。歩いている間は10分ごとに取り直して雨を見張る
+    setInterval(function () {
+      if (state.walk && !state.walk.finished) wxWalkTick(false);
+      else if (state.tab === 'search' && state.searchView === 'form') wxFetchForStart();
+    }, 60000);
+    radarProbe();
   }
   try { init(); } catch (e) {
     var box = $('#moduleError');
