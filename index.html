@@ -1,0 +1,3135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ぐるっとさんぽ</title>
+<meta name="description" content="歩きたい距離や歩数を入れると、今いる場所から歩けるルートを地図に出します。">
+<meta name="theme-color" content="#0B6B53">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ぐるっとさんぽ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<!-- 公開前のテスト中。宣伝を始めるときに外す -->
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ぐるっとさんぽ">
+<meta property="og:title" content="ぐるっとさんぽ｜散歩コースを自動で作る無料アプリ">
+<meta property="og:description" content="「30分」「3km」と入れるだけ。今いる場所から歩いて戻れる散歩ルートを3本、地図に出します。曲がり角の案内・トイレやコンビニ・坂の多さもわかります。">
+<meta property="og:image" content="https://creative-works-plus.github.io/gurutto-sanpo/img/ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ぐるっとさんぽ｜散歩コースを自動で作る無料アプリ">
+<meta name="twitter:description" content="「30分」「3km」と入れるだけ。今いる場所から歩いて戻れる散歩ルートを3本、地図に出します。">
+<meta name="twitter:image" content="https://creative-works-plus.github.io/gurutto-sanpo/img/ogp.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B6B53'/%3E%3Cpath d='M14 46c8-2 10-10 18-12s12-10 18-18' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-dasharray='2 9'/%3E%3Ccircle cx='50' cy='16' r='6' fill='%23FFD23F'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script>
+  /* 予期しないエラーを記録する（?debug=1 のときは画面にも出す） */
+  window.__sanpoErrors = [];
+  (function () {
+    var debug = /[?&]debug=1/.test(location.search);
+    function show(msg) {
+      window.__sanpoErrors.push(msg);
+      if (!debug) return;
+      var box = document.getElementById('debugLog');
+      if (!box) {
+        box = document.createElement('pre');
+        box.id = 'debugLog';
+        box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;margin:0;max-height:40vh;overflow:auto;background:#B3261E;color:#fff;font:12px/1.4 monospace;padding:6px;white-space:pre-wrap';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      box.textContent += msg + '\n';
+    }
+    window.addEventListener('error', function (e) { show('ERROR: ' + e.message + ' @' + (e.filename || '') + ':' + (e.lineno || '')); });
+    window.addEventListener('unhandledrejection', function (e) { show('REJECT: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
+  })();
+</script>
+<style>
+  :root {
+    --ink: #1C2925;
+    --ink-2: #47554F;
+    --bg: #FFFFFF;
+    --surface: #EFF3F1;
+    --line: #BFCAC4;
+    --primary: #0B6B53;
+    --primary-dark: #07503E;
+    --primary-soft: #E2F1EB;
+    --sun: #FFD23F;
+    --notice-bg: #FFF3C4;
+    --notice-line: #C99A00;
+    --danger: #B3261E;
+    --danger-soft: #FCE9E7;
+    --me: #1A73E8;
+    --tab-h: 62px;
+    --radius: 14px;
+    --sheet-overlap: 18px;
+    --fs: 1;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    font-size: calc(17px * var(--fs));
+    line-height: 1.6;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid #E8A300; outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- 全体の配置 ---------- */
+  #app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  #mapWrap { position: relative; flex: 1 1 auto; min-height: 160px; }
+  #map { position: absolute; inset: 0; background: #E8EDEA; }
+  #panel {
+    position: relative; z-index: 800;
+    flex: 0 0 auto; max-height: 66dvh;
+    display: flex; flex-direction: column;
+    background: var(--bg);
+    border-radius: 20px 20px 0 0;
+    margin-top: calc(var(--sheet-overlap) * -1);
+    box-shadow: 0 -3px 14px rgba(20, 40, 32, .22);
+  }
+  #handle {
+    flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    width: 100%; min-height: 44px; padding: 6px 0 2px; border: 0; background: transparent;
+    color: var(--ink-2); font-size: calc(14px * var(--fs));
+  }
+  #handle::before { content: ""; width: 44px; height: 5px; border-radius: 3px; background: #9AA8A1; }
+  #screens { --pad: 16px; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--pad); } /* 下の余白は .screen 側に持たせる（貼りつくボタンが余白の分だけ浮かないように） */
+  #panel.collapsed #screens { display: none; }
+  .brand { display: none; }
+  #tabs {
+    flex: 0 0 auto; display: flex; background: #fff;
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tab {
+    flex: 1; min-height: var(--tab-h); border: 0; background: transparent;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    font-size: calc(14px * var(--fs)); font-weight: 600; color: var(--ink-2); position: relative;
+  }
+  .tab svg { width: 26px; height: 26px; }
+  .tab[aria-current="page"] { color: var(--primary); }
+  .tab[aria-current="page"]::after {
+    content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 4px; border-radius: 0 0 4px 4px; background: var(--primary);
+  }
+  body.walking #tabs { display: none; }
+  body.walking #panel { padding-bottom: env(safe-area-inset-bottom); }
+
+  @media (min-width: 900px) {
+    #app { flex-direction: row-reverse; }
+    #panel {
+      width: 380px; max-height: none; height: 100dvh; margin: 0; border-radius: 0;
+      box-shadow: 3px 0 14px rgba(20, 40, 32, .16);
+    }
+    #handle { display: none; }
+    #panel.collapsed #screens { display: block; }
+    .brand {
+      display: flex; align-items: center; gap: 10px; padding: 14px 18px 10px;
+      font-size: calc(22px * var(--fs)); font-weight: 800; letter-spacing: .04em; color: var(--primary-dark);
+    }
+    .brand svg { width: 34px; height: 34px; }
+    .brand { order: -2; }
+    #tabs { order: -1; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-bottom: 0; }
+    #tabs .tab { min-height: 58px; }
+    #tabs .tab svg { width: 22px; height: 22px; }
+    .tab[aria-current="page"]::after { top: auto; bottom: 0; border-radius: 4px 4px 0 0; }
+    #screens { --pad: 20px; padding: 4px var(--pad) 0; }
+    :root { --sheet-overlap: 0px; }
+  }
+
+  /* ---------- 共通の部品 ---------- */
+  .screen { padding-top: 4px; padding-bottom: var(--pad); }
+  .h { font-size: calc(18px * var(--fs)); font-weight: 800; margin: 16px 0 8px; line-height: 1.4; }
+  .h:first-child { margin-top: 6px; }
+  .lead { margin: 0 0 10px; color: var(--ink-2); font-size: calc(15px * var(--fs)); }
+  .hint { margin: 6px 0 0; color: var(--ink-2); font-size: calc(15px * var(--fs)); }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; min-height: 50px; padding: 8px 16px;
+    border-radius: var(--radius); border: 2px solid var(--primary);
+    background: #fff; color: var(--primary-dark); font-weight: 700; font-size: calc(17px * var(--fs)); line-height: 1.3;
+    text-align: center;
+  }
+  .btn:active { background: var(--primary-soft); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .btn-primary { background: var(--primary); color: #fff; min-height: 58px; font-size: calc(19px * var(--fs)); border-color: var(--primary); box-shadow: 0 3px 0 var(--primary-dark); }
+  .btn-primary:active { background: var(--primary-dark); transform: translateY(2px); box-shadow: 0 1px 0 var(--primary-dark); }
+  .btn-danger { border-color: var(--danger); color: var(--danger); }
+  .btn-danger:active { background: var(--danger-soft); }
+  .btn-danger-fill { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn-small { min-height: 44px; font-size: calc(15px * var(--fs)); padding: 6px 12px; width: auto; }
+  .about-link { text-align: center; margin: 14px 0 4px; font-size: calc(15px * var(--fs)); }
+  .about-link a { color: var(--primary-dark); font-weight: 700; }
+  a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  .btn-link { border: 0; background: none; color: var(--primary-dark); text-decoration: underline; font-weight: 700; min-height: 44px; padding: 0 4px; }
+  .stack { display: grid; gap: 10px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > .btn { flex: 1 1 140px; padding: 8px 8px; font-size: calc(16px * var(--fs)); }
+  .sticky-cta { position: sticky; bottom: -16px; margin: 18px -16px -16px; padding: 12px 16px 16px; background: linear-gradient(rgba(255,255,255,0), #fff 22%); }
+  @media (min-width: 900px) { .sticky-cta { bottom: -20px; margin: 18px -20px -20px; padding: 12px 20px 20px; } }
+
+  .msg { border-radius: 12px; padding: 12px 14px; margin: 10px 0; font-size: calc(16px * var(--fs)); border: 2px solid; }
+  .msg p { margin: 0 0 8px; }
+  .msg p:last-child { margin-bottom: 0; }
+  .msg-notice { background: var(--notice-bg); border-color: var(--notice-line); }
+  .msg-error { background: var(--danger-soft); border-color: var(--danger); color: #7A1A14; }
+  .msg-info { background: var(--primary-soft); border-color: #8DBFAE; }
+  .msg .btn { margin-top: 8px; }
+  .msg-title { font-weight: 800; display: block; margin-bottom: 2px; }
+  .field-error { color: var(--danger); font-weight: 700; margin: 8px 0 0; font-size: calc(16px * var(--fs)); }
+
+  /* 切りかえボタン */
+  .seg { display: flex; padding: 4px; gap: 4px; background: var(--surface); border-radius: 16px; border: 1px solid var(--line); }
+  .seg button {
+    flex: 1; min-height: 48px; border: 0; border-radius: 12px; background: transparent;
+    font-weight: 700; font-size: calc(16px * var(--fs)); color: var(--ink-2); line-height: 1.25; padding: 4px 6px;
+  }
+  .seg button[aria-pressed="true"] { background: var(--primary); color: #fff; box-shadow: 0 2px 4px rgba(7, 80, 62, .3); }
+
+  /* 数の入力 */
+  .stepper { display: flex; align-items: stretch; gap: 10px; margin-top: 12px; }
+  .stepper > button {
+    flex: 0 0 60px; height: 60px; border-radius: 50%; border: 2px solid var(--primary);
+    background: #fff; color: var(--primary-dark); font-size: calc(32px * var(--fs)); font-weight: 700; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stepper > button:active { background: var(--primary-soft); }
+  .num {
+    flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 6px;
+    border: 2px solid var(--line); border-radius: var(--radius); padding: 0 10px; background: #fff; min-width: 0;
+  }
+  .num:focus-within { border-color: var(--primary); }
+  .num input {
+    width: 100%; min-width: 0; border: 0; background: transparent; outline: none;
+    font-size: calc(32px * var(--fs)); font-weight: 800; text-align: right; padding: 6px 0; font-variant-numeric: tabular-nums;
+  }
+  .num .unit { font-size: calc(18px * var(--fs)); font-weight: 700; color: var(--ink-2); flex: 0 0 auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chip {
+    min-height: 44px; min-width: 64px; padding: 4px 14px; border-radius: 22px;
+    border: 2px solid var(--line); background: #fff; font-weight: 700; font-size: calc(16px * var(--fs));
+  }
+  .chip[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-dark); }
+  .convert { margin: 10px 0 0; font-size: calc(16px * var(--fs)); font-weight: 700; color: var(--primary-dark); background: var(--primary-soft); border-radius: 10px; padding: 8px 12px; }
+
+  /* 出発地点の状態 */
+  .status { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); font-size: calc(16px * var(--fs)); }
+  .status .dot { flex: 0 0 14px; height: 14px; border-radius: 50%; margin-top: 5px; background: #9AA8A1; }
+  .status.ok .dot { background: var(--me); box-shadow: 0 0 0 3px rgba(26,115,232,.25); }
+  .status.checking .dot { background: transparent; border: 3px solid #9AA8A1; border-top-color: var(--primary); animation: spin 0.9s linear infinite; }
+  .status.error { background: var(--danger-soft); color: #7A1A14; }
+  .status.error .dot { background: var(--danger); }
+  .status.picked .dot { background: var(--primary); }
+  .status .txt { flex: 1; }
+  .status-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .status-actions .btn { flex: 1 1 160px; }
+
+  /* さがしている間 */
+  .spinner { width: 46px; height: 46px; border-radius: 50%; border: 5px solid var(--primary-soft); border-top-color: var(--primary); animation: spin 0.9s linear infinite; margin: 14px auto 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-text { text-align: center; font-weight: 700; font-size: calc(18px * var(--fs)); margin: 0 0 4px; }
+  .progress-sub { text-align: center; color: var(--ink-2); font-size: calc(15px * var(--fs)); margin: 0 0 12px; }
+
+  /* ルートのカード */
+  .cards { display: grid; gap: 10px; margin: 10px 0; }
+  .route-card {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    padding: 10px 12px; min-height: 68px; border-radius: var(--radius);
+    border: 2px solid var(--line); background: #fff;
+  }
+  .route-card .badge {
+    flex: 0 0 44px; height: 44px; border-radius: 12px; background: var(--c); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: calc(22px * var(--fs)); font-weight: 900;
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,.18);
+  }
+  .route-card .rc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .route-card .rc-name { font-weight: 800; font-size: calc(17px * var(--fs)); line-height: 1.35; }
+  .route-card .rc-stats { font-size: calc(15px * var(--fs)); color: var(--ink-2); line-height: 1.45; }
+  .route-card .rc-stats b { color: var(--ink); font-size: calc(17px * var(--fs)); }
+  .nw { white-space: nowrap; }
+  .route-card .rc-check { font-size: calc(13px * var(--fs)); font-weight: 800; color: #fff; background: var(--c); border-radius: 6px; padding: 0 6px; margin-left: 8px; vertical-align: 2px; display: none; }
+  .route-card[aria-pressed="true"] { border-color: var(--c); border-width: 3px; padding: 9px 11px; background: color-mix(in srgb, var(--c) 8%, #fff); }
+  .route-card[aria-pressed="true"] .rc-check { display: inline-block; }
+  .route-card.pending { opacity: .85; cursor: default; }
+
+  /* 歩いている間 */
+  .walk-head { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+  .walk-head .badge { flex: 0 0 34px; height: 34px; border-radius: 9px; background: var(--c); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; }
+  .walk-head .wh { display: flex; flex-direction: column; align-items: flex-start; }
+  .walk-head .t { font-weight: 800; line-height: 1.3; }
+  .walk-head .s { font-size: calc(14px * var(--fs)); color: var(--ink-2); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: var(--surface); border-radius: 14px; padding: 8px 12px 10px; }
+  .stat .k { font-size: calc(14px * var(--fs)); font-weight: 700; color: var(--ink-2); }
+  .stat .v { font-size: calc(34px * var(--fs)); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .stat .u { font-size: calc(16px * var(--fs)); font-weight: 700; margin-left: 3px; color: var(--ink-2); }
+  .stat.hero { background: var(--primary); color: #fff; }
+  .stat.hero .k, .stat.hero .u { color: #D6EFE6; }
+  .keep-on { font-size: calc(14px * var(--fs)); color: var(--ink-2); margin: 10px 0; display: flex; gap: 8px; align-items: flex-start; }
+  .keep-on svg { flex: 0 0 20px; height: 20px; margin-top: 1px; }
+  .sim-badge { display: inline-block; font-size: calc(13px * var(--fs)); font-weight: 700; background: var(--notice-bg); border: 1px solid var(--notice-line); border-radius: 8px; padding: 0 8px; }
+
+  /* 記録 */
+  .totals { background: var(--primary); color: #fff; border-radius: 16px; padding: 12px 16px; margin: 6px 0 12px; }
+  .totals .k { font-size: calc(14px * var(--fs)); color: #D6EFE6; font-weight: 700; }
+  .totals .v { font-size: calc(20px * var(--fs)); font-weight: 800; line-height: 1.5; }
+  .totals .v b { font-size: calc(26px * var(--fs)); }
+  .hist-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .hist-item { border: 2px solid var(--line); border-radius: var(--radius); background: #fff; overflow: hidden; }
+  .hist-item.is-sel { border-color: var(--primary); border-width: 3px; }
+  .hist-main { width: 100%; border: 0; background: transparent; text-align: left; display: flex; gap: 12px; align-items: center; padding: 10px 12px; min-height: 64px; }
+  .hist-main .when { font-weight: 800; font-size: calc(17px * var(--fs)); line-height: 1.35; }
+  .hist-main .what { font-size: calc(15px * var(--fs)); color: var(--ink-2); }
+  .hist-main .what b { color: var(--ink); }
+  .hist-main .info { flex: 1; min-width: 0; }
+  .goal-mark { flex: 0 0 auto; font-size: calc(13px * var(--fs)); font-weight: 800; border-radius: 8px; padding: 2px 8px; line-height: 1.5; text-align: center; }
+  .goal-mark.yes { background: var(--primary-soft); color: var(--primary-dark); border: 1px solid #8DBFAE; }
+  .goal-mark.no { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line); }
+  .hist-detail { padding: 0 12px 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: calc(14px * var(--fs)); color: var(--ink-2); margin: 0 0 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 26px; height: 0; border-top: 5px solid var(--primary); }
+  .legend i.plan { border-top: 4px dashed #6F7F78; }
+  .empty { text-align: center; padding: 18px 8px; color: var(--ink-2); }
+  .empty svg { width: 64px; height: 64px; color: #9AA8A1; }
+
+  /* 設定 */
+  .card-sec { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 14px; }
+  .card-sec:first-child { border-top: 0; margin-top: 0; }
+  .inline-form { display: flex; gap: 8px; align-items: stretch; margin-top: 8px; }
+  .inline-form .num { flex: 1; }
+  .inline-form .num input { font-size: calc(24px * var(--fs)); }
+  .inline-form .btn { width: auto; flex: 0 0 auto; }
+  .text-in { flex: 1; min-width: 0; min-height: 50px; border: 2px solid var(--line); border-radius: var(--radius); padding: 6px 12px; font-size: calc(17px * var(--fs)); background: #fff; }
+  .text-in:focus { border-color: var(--primary); outline: none; }
+  .home-status { display: flex; gap: 10px; align-items: flex-start; background: var(--surface); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .home-status svg { flex: 0 0 26px; height: 26px; color: var(--primary); }
+  .addr-results { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+  .addr-results button { width: 100%; text-align: left; min-height: 48px; border: 2px solid var(--line); border-radius: 12px; background: #fff; padding: 8px 12px; font-size: calc(16px * var(--fs)); }
+  .addr-results button:active { border-color: var(--primary); background: var(--primary-soft); }
+  .credit { font-size: calc(13px * var(--fs)); color: var(--ink-2); margin-top: 22px; line-height: 1.6; }
+  .credit a { color: var(--ink-2); }
+
+  /* ---------- 地図の上に重ねるもの ---------- */
+  .map-top {
+    position: absolute; z-index: 700; left: 10px; right: 64px; top: calc(10px + env(safe-area-inset-top));
+    display: grid; gap: 8px; pointer-events: none;
+  }
+  .banner {
+    pointer-events: auto; display: flex; gap: 10px; align-items: center;
+    background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 10px 12px;
+    font-weight: 700; font-size: calc(16px * var(--fs)); line-height: 1.4; box-shadow: 0 3px 10px rgba(0,0,0,.25);
+  }
+  .banner .b-txt { flex: 1; }
+  .banner .b-sub { display: block; font-weight: 500; font-size: calc(14px * var(--fs)); }
+  .banner .btn { width: auto; flex: 0 0 auto; }
+  .banner svg { flex: 0 0 26px; height: 26px; }
+  .banner.warn { background: var(--sun); border-color: #7A5B00; }
+  .banner.err { background: var(--danger); border-color: #6E120D; color: #fff; }
+  .banner.pick { border-color: var(--primary); }
+  /* 曲がり角の案内（歩いている間、いちばん上に大きく出す） */
+  .banner.turn { background: var(--primary-dark); border-color: #fff; color: #fff; padding: 8px 12px 8px 8px; gap: 12px; }
+  .banner.turn .t-ico { flex: 0 0 60px; height: 60px; border-radius: 12px; background: #fff; color: var(--primary-dark); display: flex; align-items: center; justify-content: center; }
+  .banner.turn .t-ico svg { flex: none; width: 46px; height: 46px; }
+  .banner.turn .t-main { display: block; font-size: calc(24px * var(--fs)); font-weight: 900; line-height: 1.25; }
+  .banner.turn .t-dist { color: var(--sun); margin-right: .3em; white-space: nowrap; }
+  .banner.turn .t-act { white-space: nowrap; }
+  .banner.turn .b-sub { font-size: calc(16px * var(--fs)); font-weight: 700; margin-top: 2px; color: #DDEFE8; }
+  .banner.turn.soon { background: #8A4B00; }
+  .banner.turn.soon .t-ico { color: #8A4B00; }
+  .banner.turn.calm .t-main { font-size: calc(20px * var(--fs)); }
+  @media (max-width: 899px) {
+    .banner.turn { padding: 6px 10px 6px 6px; gap: 10px; }
+    .banner.turn .t-ico { flex-basis: 50px; height: 50px; }
+    .banner.turn .t-ico svg { width: 40px; height: 40px; }
+    .banner.turn .t-main { font-size: calc(22px * var(--fs)); }
+    .banner.turn .b-sub { font-size: calc(15px * var(--fs)); margin-top: 0; }
+  }
+  /* 注意（GPSが弱い・ルートから離れた）は、曲がり角の案内の下に細い帯でつける。地図をなるべく隠さない */
+  .walk-guide { display: grid; pointer-events: auto; border-radius: 14px; box-shadow: 0 3px 10px rgba(0,0,0,.25); overflow: hidden; border: 2px solid #fff; }
+  .walk-guide .banner { box-shadow: none; border: 0; border-radius: 0; }
+  .strip { display: flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: calc(14px * var(--fs)); font-weight: 800; line-height: 1.35; background: #fff; color: var(--ink); }
+  .strip svg { flex: 0 0 18px; height: 18px; }
+  @media (max-width: 899px) { .strip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; } .strip svg { display: inline-block; width: 18px; vertical-align: -3px; margin-right: 4px; } }
+  .strip.warn { background: var(--sun); color: #3A2B00; }
+  .strip.weak { background: #fff; color: var(--ink-2); }
+
+  /* パネルの下に貼りつくボタン */
+  .sticky-foot {
+    position: sticky; bottom: 0; z-index: 5; margin: 12px calc(var(--pad) * -1) 0; padding: 10px var(--pad) 12px;
+    background: var(--bg); box-shadow: 0 -10px 12px -10px rgba(20, 40, 32, .28);
+  }
+  .sticky-foot + .row { margin-top: 2px; }
+  #scr-walk .sticky-foot { margin-bottom: calc(var(--pad) * -1); } /* 画面のいちばん下：下の余白まで覆う */
+
+  /* コンビニ・トイレ（ボタンの下に、1行で小さめに） */
+  .poi-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 12px 0 2px; }
+  .poi-bar .poi-label { font-size: calc(14px * var(--fs)); font-weight: 700; color: var(--ink-2); }
+  .poi-toggle {
+    min-height: 44px; padding: 2px 12px 2px 6px; border-radius: 22px; border: 2px solid var(--line); background: #fff;
+    font-weight: 700; font-size: calc(15px * var(--fs)); display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2);
+  }
+  .poi-toggle .poi-ico { width: 24px; height: 24px; filter: grayscale(1); opacity: .5; }
+  .poi-toggle[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+  .poi-toggle[aria-pressed="true"] .poi-ico { filter: none; opacity: 1; }
+  .poi-status { width: 100%; font-size: calc(13px * var(--fs)); line-height: 1.4; color: var(--ink-2); margin: 0; }
+  .poi-status.err { color: #7A1A14; }
+  .poi-ico {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45);
+    display: inline-flex; align-items: center; justify-content: center; color: #fff; flex: 0 0 auto;
+  }
+  .poi-ico svg { width: 17px; height: 17px; display: block; }
+  .poi-ico.convenience { background: #B0306A; }
+  .poi-ico.toilets { background: #3949AB; font-size: calc(11px * var(--fs)); font-weight: 900; letter-spacing: -.5px; }
+  .poi-mark { margin: -14px 0 0 -14px; }
+  .poi-mark .poi-ico { cursor: pointer; }
+  .leaflet-popup-content { font-size: calc(15px * var(--fs)); line-height: 1.5; margin: 10px 14px; }
+  .poi-pop b { font-size: calc(16px * var(--fs)); }
+  .poi-pop .off { color: var(--ink-2); }
+  .walk-poi { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+  .walk-poi li { display: flex; align-items: center; gap: 8px; font-size: calc(16px * var(--fs)); font-weight: 700; }
+  .walk-poi .poi-ico { width: 24px; height: 24px; }
+  .walk-poi .poi-ico svg { width: 14px; height: 14px; }
+
+  /* 歩いた所の色分けの見本 */
+  .legend i.walked { border-top-color: #129A4A; border-top-width: 6px; }
+  .legend i.skipped { border-top: 5px dashed #D7261E; }
+  .legend i.todo { border-top-color: #0072B2; }
+  .cover-line { margin: 4px 0 10px; font-size: calc(17px * var(--fs)); font-weight: 700; }
+  .cover-line b { font-size: calc(22px * var(--fs)); color: var(--primary-dark); }
+  .cover-line.cover-sc { color: var(--primary-dark); }
+  .cover-line.cover-sc small { display: block; font-size: calc(14px * var(--fs)); font-weight: 400; color: var(--ink-2); margin-top: 2px; }
+  .cover-bar { height: 10px; border-radius: 5px; background: #E3E8E5; overflow: hidden; margin-top: 4px; }
+  .cover-bar span { display: block; height: 100%; background: #129A4A; }
+  .map-fab {
+    position: absolute; z-index: 700; right: 10px; bottom: calc(var(--sheet-overlap) + 30px);
+    min-height: 52px; padding: 6px 18px 6px 14px; border-radius: 26px; border: 2px solid var(--me);
+    background: #fff; color: #0B4FB0; font-weight: 800; font-size: calc(16px * var(--fs)); display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,.25);
+  }
+  .map-fab svg { width: 24px; height: 24px; }
+  .map-fatal { position: absolute; inset: 0; z-index: 650; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #E8EDEA; font-weight: 700; }
+
+  /* Leaflet の調整 */
+  .leaflet-container { font-family: inherit; background: #EFEBE4; }
+  .leaflet-bottom { bottom: var(--sheet-overlap); }
+  .leaflet-control-attribution { font-size: 11px; line-height: 1.5; background: rgba(255,255,255,.88) !important; }
+  .leaflet-control-zoom a { width: 44px !important; height: 44px !important; line-height: 44px !important; font-size: 24px !important; color: var(--ink) !important; }
+  .leaflet-top { top: env(safe-area-inset-top); }
+  .pin-wrap { width: 0 !important; height: 0 !important; }
+  .pin {
+    position: absolute; left: 0; bottom: 12px; transform: translateX(-50%);
+    white-space: nowrap; padding: 3px 10px; border-radius: 10px; font-weight: 800; font-size: calc(14px * var(--fs)); line-height: 1.5;
+    color: #fff; background: var(--ink); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  }
+  .pin::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -7px; border: 7px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
+  .pin-dot { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .pin.start { background: var(--primary); }
+  .pin.start::after { border-top-color: var(--primary); }
+  .pin.home { background: #6B3FA0; }
+  .pin.home::after { border-top-color: #6B3FA0; }
+  .pin.pick { background: var(--primary); animation: drop .35s ease-out; }
+  @keyframes drop { from { transform: translate(-50%, -14px); opacity: 0; } }
+  .route-letter {
+    width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 8px; background: var(--c); color: #fff; border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: calc(16px * var(--fs)); box-shadow: 0 2px 5px rgba(0,0,0,.35);
+  }
+  .route-letter.faded { opacity: .55; }
+  .arrow { width: 22px; height: 22px; margin: -11px 0 0 -11px; }
+  .arrow svg { width: 22px; height: 22px; display: block; filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff); }
+  .me-dot { width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--me); border: 4px solid #fff; box-shadow: 0 0 0 2px rgba(26,115,232,.35), 0 2px 6px rgba(0,0,0,.4); }
+
+  /* ---------- 確認の窓・お知らせ ---------- */
+  #modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 30, 25, .55); }
+  .modal-card {
+    width: 100%; max-width: 420px; max-height: calc(100dvh - 32px); overflow-y: auto;
+    background: #fff; border-radius: 20px; padding: 22px 18px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    animation: pop .22s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.94); opacity: 0; } }
+  .modal-card h2 { margin: 0 0 8px; font-size: calc(21px * var(--fs)); line-height: 1.4; }
+  .modal-card .m-body { font-size: calc(16px * var(--fs)); }
+  .modal-card .m-body p { margin: 0 0 10px; }
+  .modal-actions { display: grid; gap: 10px; margin-top: 16px; }
+  .celebrate { text-align: center; }
+  .celebrate .flag { width: 84px; height: 84px; margin: 0 auto 6px; display: block; animation: wave 1.2s ease-in-out 2; transform-origin: 30% 90%; }
+  @keyframes wave { 50% { transform: rotate(-8deg); } }
+  .celebrate h2 { font-size: calc(24px * var(--fs)); color: var(--primary-dark); }
+  .celebrate .stats { text-align: left; margin: 12px 0 6px; }
+  .celebrate .stat .v { font-size: calc(28px * var(--fs)); }
+  #toast {
+    position: fixed; z-index: 2100; left: 50%; transform: translateX(-50%); top: calc(14px + env(safe-area-inset-top));
+    background: var(--ink); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 24px; max-width: calc(100% - 32px);
+    box-shadow: 0 4px 14px rgba(0,0,0,.3); text-align: center;
+  }
+  #toast.low { top: calc(24px + 96px * var(--fs) + env(safe-area-inset-top)); }
+  /* ---------- 文字の大きさ（設定） ---------- */
+  html[data-fs="large"] { --fs: 1.15; }
+  html[data-fs="xlarge"] { --fs: 1.3; }
+  .h3 { font-size: calc(16px * var(--fs)); }
+  .seg .nw { display: inline-block; }
+  html[data-fs="xlarge"] .stat .v { font-size: calc(30px * var(--fs)); }
+  html[data-fs="xlarge"] .stat { padding: 6px 10px 8px; }
+
+  /* 日の出・日の入り */
+  .sun-line { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: calc(16px * var(--fs)); font-weight: 700; color: var(--ink-2); }
+  .sun-line svg { flex: 0 0 22px; height: 22px; color: #B27A00; }
+  .sun-line b { color: var(--ink); }
+  .sun-warn { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; background: #EEF0F8; border: 1px solid #B9C0DB; font-size: calc(15px * var(--fs)); line-height: 1.5; color: #232B4A; }
+  .sun-warn svg { flex: 0 0 22px; height: 22px; margin-top: 1px; color: #3B4A8F; }
+
+  /* いつものコース */
+  .course-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .course-row { display: flex; align-items: center; gap: 10px; border: 2px solid var(--line); border-radius: var(--radius); padding: 8px 8px 8px 12px; background: #fff; }
+  .course-row .c-info { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+  .course-row .c-name { font-weight: 800; font-size: calc(17px * var(--fs)); overflow-wrap: anywhere; }
+  .course-row .c-sub { font-size: calc(14px * var(--fs)); color: var(--ink-2); }
+  .course-row .btn { flex: 0 0 auto; width: auto; }
+  .course-row .c-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  /* 文字を大きくしたときは、ボタンを下の段に回して名前・説明を横いっぱいに使う */
+  html[data-fs="large"] .course-row, html[data-fs="xlarge"] .course-row { flex-wrap: wrap; }
+  html[data-fs="large"] .course-row .c-info, html[data-fs="xlarge"] .course-row .c-info { flex: 1 1 100%; }
+  html[data-fs="large"] .course-row > .btn, html[data-fs="xlarge"] .course-row > .btn { flex: 1 1 100%; }
+  html[data-fs="large"] .course-row .c-acts, html[data-fs="xlarge"] .course-row .c-acts { flex: 1 1 100%; justify-content: stretch; }
+  html[data-fs="large"] .course-row .c-acts .btn, html[data-fs="xlarge"] .course-row .c-acts .btn { flex: 1 1 0; }
+  .courses-more { margin-top: 4px; }
+  .save-course { text-align: left; margin: 12px 0 4px; padding: 12px; border-radius: 14px; background: var(--primary-soft); border: 2px solid #8DBFAE; }
+  .save-course .sc-q { margin: 0 0 8px; font-weight: 800; font-size: calc(17px * var(--fs)); line-height: 1.45; }
+  .save-course label { display: block; font-size: calc(14px * var(--fs)); font-weight: 700; color: var(--ink-2); }
+  .save-course .text-in { width: 100%; margin: 2px 0 10px; }
+  .save-course .row > .btn { min-height: 48px; }
+  .save-course.done { background: #fff; font-weight: 700; }
+
+  /* 坂の多さ */
+  .rc-slope { display: inline-flex; align-items: center; gap: 4px; font-size: calc(14px * var(--fs)); color: var(--ink-2); font-weight: 700; line-height: 1.4; }
+  .rc-slope svg { width: 22px; height: 14px; flex: 0 0 22px; color: #6F5A3A; }
+  .rc-slope.hilly { color: #7A3E00; }
+
+  /* 歩いている間：ペース・小さな切りかえ */
+  .pace-line { margin: 8px 0 0; font-size: calc(15px * var(--fs)); font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .pace-line b { color: var(--ink); font-size: calc(17px * var(--fs)); }
+  .walk-tools { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .walk-tools .btn { flex: 1 1 130px; min-height: 44px; font-size: calc(15px * var(--fs)); padding: 4px 10px; gap: 6px; }
+  .walk-tools .btn svg { width: 20px; height: 20px; flex: 0 0 20px; }
+  .walk-tools .btn[aria-pressed="true"] { background: var(--primary); color: #fff; }
+  .shortcut-on { display: inline-block; font-size: calc(13px * var(--fs)); font-weight: 800; background: #DCEBFA; color: #0B4FB0; border-radius: 8px; padding: 0 8px; margin-left: 4px; }
+  .note-off { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px; padding: 8px 6px 8px 12px; border-radius: 12px; background: var(--notice-bg); border: 1px solid var(--notice-line); font-size: calc(15px * var(--fs)); font-weight: 700; line-height: 1.45; }
+  .note-off span { flex: 1; padding-top: 4px; }
+  .note-off button { flex: 0 0 44px; height: 44px; border: 0; background: transparent; font-size: calc(22px * var(--fs)); line-height: 1; color: var(--ink-2); }
+  .mini-spin { width: 34px; height: 34px; margin: 4px auto 10px; border-width: 4px; }
+
+  /* 1kmごとのペース */
+  .splits { text-align: left; margin: 10px 0 6px; font-size: calc(15px * var(--fs)); }
+  .splits .sp-avg { font-weight: 800; margin: 0 0 4px; }
+  .splits ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(140px * var(--fs)), 1fr)); gap: 2px 12px; font-variant-numeric: tabular-nums; }
+  .splits li { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--line); padding: 1px 0; }
+  .splits li span { color: var(--ink-2); }
+  .splits li, .splits .nw { white-space: nowrap; }
+  .off-note { text-align: left; font-size: calc(14px * var(--fs)); color: var(--ink-2); margin: 6px 0; }
+
+  /* 記録：週・月 */
+  .period-card { border: 2px solid var(--line); border-radius: 16px; padding: 10px 12px 12px; margin: 10px 0 12px; }
+  .period-sum { margin: 8px 0 2px; font-size: calc(16px * var(--fs)); font-weight: 700; color: var(--ink-2); line-height: 1.5; }
+  .period-sum b { font-size: calc(24px * var(--fs)); color: var(--ink); }
+  .bar-chart { display: block; width: 100%; overflow: visible; touch-action: manipulation; }
+  .bar-chart .grid { stroke: #DDE3E0; stroke-width: 1; }
+  .bar-chart .base { stroke: #8D9A94; stroke-width: 1.5; }
+  .bar-chart .bar { fill: var(--primary); }
+  .bar-chart .bar.today { fill: #12865F; }
+  .bar-chart .bar.sel { fill: var(--primary-dark); }
+  .bar-chart .hit { fill: transparent; cursor: pointer; }
+  .bar-chart text { fill: var(--ink-2); font-size: calc(13px * var(--fs)); font-weight: 700; font-family: inherit; }
+  .bar-chart text.vlabel { fill: var(--ink); font-size: calc(13px * var(--fs)); }
+  .bar-chart text.today-l { fill: var(--primary-dark); font-weight: 900; }
+  .chart-read { margin: 4px 0 0; min-height: 1.6em; font-size: calc(16px * var(--fs)); font-weight: 700; }
+  .goal-box { margin: 12px 0 0; }
+  .goal-box p { margin: 0 0 4px; font-size: calc(16px * var(--fs)); font-weight: 700; line-height: 1.45; }
+  .goal-box p b { color: var(--primary-dark); font-size: calc(18px * var(--fs)); }
+  .goal-bar { height: 14px; border-radius: 7px; background: #E3E8E5; overflow: hidden; }
+  .goal-bar span { display: block; height: 100%; background: var(--primary); border-radius: 7px; }
+  .streak { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border-radius: 14px; background: var(--notice-bg); border: 1px solid var(--notice-line); font-weight: 700; font-size: calc(15px * var(--fs)); line-height: 1.4; }
+  .streak b { font-size: calc(22px * var(--fs)); }
+  .streak svg { flex: 0 0 30px; height: 30px; color: #C25E00; }
+  .cal { border: 2px solid var(--line); border-radius: 16px; padding: 6px 8px 10px; margin: 0 0 12px; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; }
+  .cal-head b { font-size: calc(18px * var(--fs)); }
+  .cal-head button { min-width: 48px; min-height: 44px; border: 0; background: transparent; font-size: calc(22px * var(--fs)); color: var(--primary-dark); font-weight: 800; }
+  .cal-head button[disabled] { opacity: .3; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .cal-grid .dow { font-size: calc(13px * var(--fs)); font-weight: 700; color: var(--ink-2); padding: 2px 0; }
+  .cal-grid .dow.sun, .cal-grid .d.sun { color: #B3261E; }
+  .cal-grid .dow.sat, .cal-grid .d.sat { color: #1F55B5; }
+  .cal-grid .d { position: relative; display: flex; align-items: center; justify-content: center; height: calc(38px * var(--fs)); font-size: calc(15px * var(--fs)); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cal-grid .d.walked::before { content: ""; position: absolute; width: calc(32px * var(--fs)); height: calc(32px * var(--fs)); border-radius: 50%; border: 3px solid var(--primary); background: var(--primary-soft); z-index: -1; }
+  .cal-grid .d { z-index: 0; }
+  .cal-grid .d.today { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 3px; }
+  .cal-grid .d.future { color: #A9B4AF; }
+  .cal-note { font-size: calc(14px * var(--fs)); color: var(--ink-2); margin: 6px 2px 0; }
+  .hist-sub { font-size: calc(18px * var(--fs)); font-weight: 800; margin: 16px 0 8px; }
+
+  /* 設定：オン・オフ */
+  .check-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 2px; font-weight: 700; cursor: pointer; }
+  .check-row input { flex: 0 0 28px; width: 28px; height: 28px; accent-color: var(--primary); margin: 0; }
+  .seg.seg-3 button { font-size: calc(15px * var(--fs)); }
+  .seg button small { display: block; font-size: calc(12px * var(--fs)); font-weight: 600; opacity: .9; }
+  .goal-km { margin-top: 10px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 2s !important; animation-iteration-count: 1 !important; transition: none !important; }
+    .spinner, .status.checking .dot { animation-iteration-count: infinite !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mapWrap">
+    <div id="map" role="application" aria-label="地図"></div>
+    <div class="map-top" id="mapTop"></div>
+    <button type="button" class="map-fab" id="btnRecenter" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+      現在地に戻る
+    </button>
+  </div>
+
+  <aside id="panel">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0B6B53"/><path d="M14 46c8-2 10-10 18-12s12-10 18-18" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="2 9"/><circle cx="50" cy="16" r="6" fill="#FFD23F"/></svg>
+      ぐるっとさんぽ
+    </div>
+    <button type="button" id="handle" aria-expanded="true"><span id="handleText">地図を大きくする</span></button>
+
+    <div id="screens">
+      <div id="moduleError" class="msg msg-error" hidden></div>
+
+      <!-- 1. ルートを探す -->
+      <section class="screen" id="scr-form" hidden>
+        <div id="courseSec" hidden>
+          <h2 class="h">いつものコース</h2>
+          <ul class="course-list" id="courseList"></ul>
+          <button type="button" class="btn-link courses-more" id="btnAllCourses" hidden>すべて見る</button>
+        </div>
+        <h2 class="h">出発地点</h2>
+        <div id="startStatus" class="status checking"><span class="dot"></span><span class="txt">今いる場所を調べています…</span></div>
+        <div class="status-actions">
+          <button type="button" class="btn btn-small" id="btnPickStart">地図で出発地点を選ぶ</button>
+          <button type="button" class="btn btn-small" id="btnUseGps" hidden>今いる場所から出発する</button>
+        </div>
+
+        <h2 class="h">どれくらい歩く？</h2>
+        <div class="seg" role="group" aria-label="決め方">
+          <button type="button" data-mode="km" aria-pressed="true"><span class="nw">距離で</span><span class="nw">決める</span></button>
+          <button type="button" data-mode="steps" aria-pressed="false"><span class="nw">歩数で</span><span class="nw">決める</span></button>
+          <button type="button" data-mode="minutes" aria-pressed="false"><span class="nw">時間で</span><span class="nw">決める</span></button>
+        </div>
+        <div class="stepper">
+          <button type="button" id="btnMinus" aria-label="へらす">−</button>
+          <label class="num"><input id="amount" type="text" inputmode="decimal" autocomplete="off" aria-label="歩く量"><span class="unit" id="unit">km</span></label>
+          <button type="button" id="btnPlus" aria-label="ふやす">＋</button>
+        </div>
+        <div class="chips" id="chips"></div>
+        <p class="convert" id="convert"></p>
+        <p class="field-error" id="amountError" hidden></p>
+
+        <h2 class="h">ゴール</h2>
+        <div class="seg" role="group" aria-label="ゴール">
+          <button type="button" data-goal="start" aria-pressed="true">出発した場所に戻る</button>
+          <button type="button" data-goal="home" aria-pressed="false">家に戻る</button>
+        </div>
+        <div class="msg msg-notice" id="homeMissing" hidden>
+          <p>家の場所がまだ登録されていません。先に家の場所を登録してください。</p>
+          <button type="button" class="btn" id="btnGoRegister">家の場所を登録する</button>
+        </div>
+        <p class="hint" id="homeInfo" hidden></p>
+        <div id="sunBox" hidden></div>
+
+        <div class="sticky-cta">
+          <p class="field-error" id="searchError" hidden></p>
+          <button type="button" class="btn btn-primary" id="btnSearch">ルートを探す</button>
+        </div>
+        <p class="about-link"><a href="about.html">はじめての方へ：ぐるっとさんぽの使い方</a></p>
+      </section>
+
+      <!-- 2. さがしている間 -->
+      <section class="screen" id="scr-searching" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="progress-text" id="progressText" role="status">ルートを探しています…</p>
+        <p class="progress-sub">少し時間がかかることがあります</p>
+        <div class="cards" id="pendingCards"></div>
+        <button type="button" class="btn" id="btnAbort">やめる</button>
+      </section>
+
+      <!-- 3. 見つかったルート -->
+      <section class="screen" id="scr-results" hidden>
+        <div id="resultOk">
+          <h2 class="h" id="resultTitle">ルートが見つかりました</h2>
+          <p class="lead" id="resultLead"></p>
+          <div class="msg msg-notice" id="notice" hidden></div>
+          <div class="cards" id="routeCards"></div>
+          <!-- いちばん大事なボタンは、下にスクロールしなくても見えるようにパネルの下に貼りつける -->
+          <div class="sticky-foot"><button type="button" class="btn btn-primary" id="btnWalk">このルートで歩く</button></div>
+          <div class="row">
+            <button type="button" class="btn" id="btnAnother">別のルートを探す</button>
+            <button type="button" class="btn" id="btnChange">条件を変える</button>
+          </div>
+          <div class="poi-bar" id="poiBarResults" hidden></div>
+        </div>
+        <div id="resultFail" hidden>
+          <h2 class="h">ルートを出せませんでした</h2>
+          <div class="msg msg-error" id="failMsg"></div>
+          <div class="stack">
+            <button type="button" class="btn btn-primary" id="btnRetry">もう一度探す</button>
+            <button type="button" class="btn" id="btnChange2">条件を変える</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 歩いている間 -->
+      <section class="screen" id="scr-walk" hidden>
+        <div class="note-off" id="screenOffNote" role="status" hidden><span id="screenOffText"></span><button type="button" id="btnOffClose" aria-label="この知らせを閉じる">×</button></div>
+        <div class="walk-head" id="walkHead"></div>
+        <div class="stats">
+          <div class="stat hero"><div class="k">歩いた距離</div><div><span class="v" id="wDist">0</span><span class="u" id="wDistU">m</span></div></div>
+          <div class="stat"><div class="k">歩数</div><div><span class="v" id="wSteps">0</span><span class="u">歩</span></div></div>
+          <div class="stat"><div class="k">ゴールまで残り</div><div><span class="v" id="wRemain">-</span><span class="u" id="wRemainU"></span></div></div>
+          <div class="stat"><div class="k">経過時間</div><div><span class="v" id="wTime">0:00</span></div></div>
+        </div>
+        <p class="pace-line" id="wPace" hidden></p>
+        <div class="walk-tools" id="walkTools">
+          <button type="button" class="btn" id="btnVoice" aria-pressed="false" hidden></button>
+          <button type="button" class="btn" id="btnShortcut" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4"/><path d="M11 4h9v9"/></svg>近道で帰る</button>
+        </div>
+        <ul class="walk-poi" id="walkPoi" hidden></ul>
+        <div class="legend" id="walkLegend"><span><i class="walked"></i>歩いた</span><span class="lg-skip"><i class="skipped"></i>通っていない</span><span><i class="todo"></i>これから</span></div>
+        <div class="poi-bar" id="poiBarWalk" hidden></div>
+        <p class="keep-on">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+          <span id="keepOnText">歩いている間は、画面を消さないでください。画面が消えると、歩いた道を記録できなくなります。</span>
+        </p>
+        <div class="sticky-foot"><button type="button" class="btn btn-danger" id="btnEnd">終了する</button></div>
+      </section>
+
+      <!-- 5. 記録 -->
+      <section class="screen" id="scr-history" hidden>
+        <h2 class="h">歩いた記録</h2>
+        <div id="histBody"></div>
+      </section>
+
+      <!-- 6. 設定 -->
+      <section class="screen" id="scr-settings" hidden>
+        <div class="card-sec">
+          <h2 class="h">文字の大きさ</h2>
+          <div class="seg seg-3" role="group" aria-label="文字の大きさ">
+            <button type="button" data-set="fontScale" data-v="normal">ふつう</button>
+            <button type="button" data-set="fontScale" data-v="large">大きい</button>
+            <button type="button" data-set="fontScale" data-v="xlarge"><span class="nw">とても</span><span class="nw">大きい</span></button>
+          </div>
+        </div>
+
+        <div class="card-sec">
+          <h2 class="h">歩く速さ</h2>
+          <p class="lead">「時間で決める」と、かかる時間の目安に使います。</p>
+          <div class="seg seg-3" role="group" aria-label="歩く速さ">
+            <button type="button" data-set="walkSpeed" data-v="60">ゆっくり<small>1分で60m</small></button>
+            <button type="button" data-set="walkSpeed" data-v="80">ふつう<small>1分で80m</small></button>
+            <button type="button" data-set="walkSpeed" data-v="100">はやい<small>1分で100m</small></button>
+          </div>
+        </div>
+
+        <div class="card-sec">
+          <h2 class="h">歩幅</h2>
+          <p class="lead">歩数から距離を計算するときに使います。ふつうは 60〜80cm くらいです。</p>
+          <div class="stepper">
+            <button type="button" id="strideMinus" aria-label="歩幅をへらす">−</button>
+            <label class="num"><input id="strideIn" type="text" inputmode="numeric" autocomplete="off" aria-label="歩幅（センチ）"><span class="unit">cm</span></label>
+            <button type="button" id="stridePlus" aria-label="歩幅をふやす">＋</button>
+          </div>
+          <p class="field-error" id="strideError" hidden></p>
+          <h3 class="h h3">身長から計算する</h3>
+          <div class="inline-form">
+            <label class="num"><input id="heightIn" type="text" inputmode="numeric" autocomplete="off" placeholder="160" aria-label="身長（センチ）"><span class="unit">cm</span></label>
+            <button type="button" class="btn" id="btnCalcStride">計算する</button>
+          </div>
+          <p class="hint">身長 × 0.45 で歩幅を出します。</p>
+          <p class="field-error" id="heightError" hidden></p>
+        </div>
+
+        <div class="card-sec" id="homeSec">
+          <h2 class="h">家の場所</h2>
+          <p class="lead">「家に戻る」ルートを探すときのゴールになります。</p>
+          <div class="home-status" id="homeStatus"></div>
+          <div class="stack">
+            <button type="button" class="btn" id="btnHomeHere">今いる場所を家にする</button>
+            <button type="button" class="btn" id="btnHomeMap">地図をタップして決める</button>
+          </div>
+          <p class="hint" id="homeHereStatus" hidden></p>
+          <h3 class="h h3">住所で探す</h3>
+          <form class="inline-form" id="addrForm">
+            <input class="text-in" id="addrIn" type="search" enterkeyhint="search" placeholder="例：東京都千代田区丸の内1丁目" aria-label="住所">
+            <button type="submit" class="btn">探す</button>
+          </form>
+          <p class="hint" id="addrStatus" hidden></p>
+          <ul class="addr-results" id="addrResults"></ul>
+          <div style="margin-top:14px"><button type="button" class="btn btn-danger" id="btnHomeClear">家の登録を消す</button></div>
+        </div>
+
+        <div class="card-sec" id="voiceSec">
+          <h2 class="h">音声案内</h2>
+          <p class="lead">歩いている間、曲がり角の手前などで声でお知らせします。</p>
+          <div class="seg" role="group" aria-label="音声案内">
+            <button type="button" data-set="voice" data-v="1">使う</button>
+            <button type="button" data-set="voice" data-v="0">使わない</button>
+          </div>
+        </div>
+
+        <div class="card-sec" id="goalSec">
+          <h2 class="h">歩く目標</h2>
+          <p class="lead">「記録」に、目標まであとどれくらいかを出します。</p>
+          <div class="seg seg-3" role="group" aria-label="目標の期間">
+            <button type="button" data-set="goalPeriod" data-v="none">決めない</button>
+            <button type="button" data-set="goalPeriod" data-v="week">1週間で</button>
+            <button type="button" data-set="goalPeriod" data-v="month">1か月で</button>
+          </div>
+          <div class="stepper goal-km" id="goalKmRow">
+            <button type="button" id="goalMinus" aria-label="目標をへらす">−</button>
+            <label class="num"><input id="goalIn" type="text" inputmode="decimal" autocomplete="off" aria-label="目標（キロメートル）"><span class="unit">km</span></label>
+            <button type="button" id="goalPlus" aria-label="目標をふやす">＋</button>
+          </div>
+          <p class="field-error" id="goalError" hidden></p>
+        </div>
+
+        <div class="card-sec" id="coursesSetSec">
+          <h2 class="h">いつものコース</h2>
+          <div id="courseManage"></div>
+        </div>
+
+        <div class="card-sec">
+          <h2 class="h">地図の表示</h2>
+          <label class="check-row"><input type="checkbox" id="chkSkipped">通っていない所を赤い点線で表示する</label>
+        </div>
+
+        <div class="card-sec">
+          <h2 class="h">このアプリについて</h2>
+          <a class="btn" href="about.html">このアプリについて・使い方</a>
+        </div>
+
+        <p class="credit">
+          地図：© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（配信：<a href="https://tile.openstreetmap.jp/" target="_blank" rel="noopener">OpenStreetMap Japan</a>）<br>
+          道・コンビニ・トイレのデータ：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors<br>
+          住所検索：国土地理院<br>
+          坂の多さ：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 標高タイル</a>
+        </p>
+      </section>
+    </div>
+
+    <nav id="tabs" aria-label="画面の切りかえ">
+      <button type="button" class="tab" data-tab="search" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
+        ルートを探す
+      </button>
+      <button type="button" class="tab" data-tab="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M8 2v4M16 2v4M4 10h16M8 14h3M8 17h6"/></svg>
+        記録
+      </button>
+      <button type="button" class="tab" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+        設定
+      </button>
+    </nav>
+  </aside>
+</div>
+
+<div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-card" id="modalCard"></div></div>
+<div id="toast" hidden role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="route-engine.js"></script>
+<script src="walk.js"></script>
+<script src="history.js"></script>
+<script src="poi.js"></script>
+<script src="courses.js"></script>
+<script src="elevation.js"></script>
+<script src="sun.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ====================== 小さな道具 ====================== */
+  var $ = function (s, el) { return (el || document).querySelector(s); };
+  var $$ = function (s, el) { return Array.prototype.slice.call((el || document).querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  function fmtNum(n) { return Math.round(n).toLocaleString('ja-JP'); }
+  function trimZero(s) { return String(s).replace(/\.0+$/, ''); }
+  // 距離の表示はどこでも同じ決まり：先に 1m 単位で丸め、1000m 以上なら km
+  function fmtDist(m) {
+    if (!isFinite(m)) return '-';
+    var r = Math.max(0, Math.round(m));
+    if (r < 1000) return r + 'm';
+    return (r / 1000).toFixed(1) + 'km';
+  }
+  function distParts(m, digits) {
+    var r = Math.max(0, Math.round(m || 0));
+    if (r < 1000) return { v: String(r), u: 'm' };
+    return { v: (r / 1000).toFixed(digits == null ? 2 : digits), u: 'km' };
+  }
+  // 歩く時間の目安（「約○分」。30秒未満なら「1分かからない」）
+  function approxMinutes(min) { return min < 0.5 ? '1分かからない' : '約' + fmtMinutes(min); }
+  function fmtMinutes(min) {
+    var t = Math.max(1, Math.round(min));
+    var h = Math.floor(t / 60), m = t % 60;
+    if (h === 0) return m + '分';
+    return h + '時間' + (m ? m + '分' : '');
+  }
+  function fmtDurationMs(ms) { return fmtMinutes((ms || 0) / 60000); }
+  function fmtClock(ms) {
+    var s = Math.max(0, Math.floor((ms || 0) / 1000));
+    var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(sec) : m + ':' + pad(sec);
+  }
+  function walkMinutes(m) { return m / speedMpm(); }
+  function speedMpm() { return settings.walkSpeed || 80; } // 歩く速さ（1分で何m）
+  function stepsFor(m) { return Math.round(m / (settings.strideCm / 100)); }
+  function toHalfWidth(s) { return String(s == null ? '' : s).replace(/[０-９．]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+  function parseNum(s) {
+    // カンマの後ろがちょうど3けたなら「10,000」の区切り、それ以外は小数点（「3,5」→ 3.5）として読む
+    s = toHalfWidth(s).replace(/\s/g, '').replace(/[,，](?=\d{3}(?!\d))/g, '').replace(/[,，]/g, '.');
+    if (!/^(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+    return parseFloat(s);
+  }
+  function parseLatLng(s) {
+    if (!s) return null;
+    var p = String(s).split(',').map(Number);
+    if (p.length !== 2 || !isFinite(p[0]) || !isFinite(p[1]) || Math.abs(p[0]) > 90 || Math.abs(p[1]) > 180) return null;
+    return { lat: p[0], lng: p[1] };
+  }
+  function haversine(a, b) {
+    var R = 6371008.8, toR = Math.PI / 180;
+    var dLat = (b[0] - a[0]) * toR, dLng = (b[1] - a[1]) * toR;
+    var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+  function cumulative(coords) {
+    var c = [0];
+    for (var i = 1; i < coords.length; i++) c.push(c[i - 1] + haversine(coords[i - 1], coords[i]));
+    return c;
+  }
+  function pointAt(coords, cum, d) {
+    // d メートル地点の座標と、その区間の番号
+    if (d <= 0) return { p: coords[0], i: 0 };
+    var n = coords.length - 1;
+    if (d >= cum[n]) return { p: coords[n], i: Math.max(0, n - 1) };
+    var lo = 0, hi = n;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (cum[mid] <= d) lo = mid; else hi = mid; }
+    var seg = cum[hi] - cum[lo], t = seg > 0 ? (d - cum[lo]) / seg : 0;
+    return { p: [coords[lo][0] + (coords[hi][0] - coords[lo][0]) * t, coords[lo][1] + (coords[hi][1] - coords[lo][1]) * t], i: lo };
+  }
+  function splitAt(coords, cum, d) {
+    var at = pointAt(coords, cum, d);
+    var passed = coords.slice(0, at.i + 1); passed.push(at.p);
+    var rest = [at.p].concat(coords.slice(at.i + 1));
+    return [passed, rest];
+  }
+  var DOW = ['日', '月', '火', '水', '木', '金', '土'];
+  function fmtWhen(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '日付不明';
+    var mm = d.getMinutes();
+    var y = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '年' : '';
+    return y + (d.getMonth() + 1) + '月' + d.getDate() + '日（' + DOW[d.getDay()] + '） ' + d.getHours() + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+
+  /* ====================== 開発用の URL ====================== */
+  var params = new URLSearchParams(location.search);
+  var DEV = {
+    start: parseLatLng(params.get('start')),
+    simulate: params.get('simulate') === '1',
+    demo: params.get('demo') || ''
+  };
+
+  /* ====================== 設定（localStorage） ====================== */
+  var SETTINGS_KEY = 'sanpo.settings';
+  var DEFAULTS = { strideCm: 70, home: null, goalType: 'start', inputMode: 'km', lastKm: 3, lastSteps: 5000, lastMin: 30,
+    walkSpeed: 80, voice: false, fontScale: 'normal', showSkipped: true, goal: null };
+  function loadSettings() {
+    var s = Object.assign({}, DEFAULTS);
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) {
+        var o = JSON.parse(raw) || {};
+        if (isFinite(o.strideCm) && o.strideCm >= 30 && o.strideCm <= 150) s.strideCm = Math.round(o.strideCm);
+        if (o.home && isFinite(o.home.lat) && isFinite(o.home.lng)) s.home = { lat: +o.home.lat, lng: +o.home.lng, labelJa: String(o.home.labelJa || '登録した場所') };
+        if (o.goalType === 'home' || o.goalType === 'start') s.goalType = o.goalType;
+        if (o.inputMode === 'km' || o.inputMode === 'steps' || o.inputMode === 'minutes') s.inputMode = o.inputMode;
+        if (isFinite(o.lastMin) && o.lastMin > 0) s.lastMin = +o.lastMin;
+        if (isFinite(o.walkSpeed) && o.walkSpeed >= 30 && o.walkSpeed <= 150) s.walkSpeed = +o.walkSpeed;
+        if (typeof o.voice === 'boolean') s.voice = o.voice;
+        if (o.fontScale === 'normal' || o.fontScale === 'large' || o.fontScale === 'xlarge') s.fontScale = o.fontScale;
+        if (typeof o.showSkipped === 'boolean') s.showSkipped = o.showSkipped;
+        if (o.goal && (o.goal.period === 'week' || o.goal.period === 'month') && isFinite(o.goal.meters) && o.goal.meters > 0) s.goal = { period: o.goal.period, meters: +o.goal.meters };
+        if (isFinite(o.lastKm) && o.lastKm > 0) s.lastKm = +o.lastKm;
+        if (isFinite(o.lastSteps) && o.lastSteps > 0) s.lastSteps = +o.lastSteps;
+      }
+    } catch (e) { /* 使えなくても続ける */ }
+    return s;
+  }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* 保存できなくても続ける */ }
+  }
+  var settings = loadSettings();
+  function applyFontScale() { document.documentElement.setAttribute('data-fs', settings.fontScale || 'normal'); }
+  applyFontScale();
+
+  /* ====================== 状態 ====================== */
+  var ROUTE_COLORS = ['#0072B2', '#D55E00', '#009E73'];
+  var LETTERS = ['A', 'B', 'C', 'D', 'E'];
+  var KM_CHIPS = [2, 3, 5, 10], STEP_CHIPS = [3000, 5000, 8000, 10000], MIN_CHIPS = [20, 30, 45, 60];
+  var state = {
+    tab: 'search',
+    searchView: 'form',          // form | searching | results
+    start: null, startSource: null, // gps | map | param
+    pick: null,                  // start | home
+    routes: [], selected: 0, notice: null, lastQuery: null, searchError: null,
+    searchToken: 0, abort: null,
+    walk: null,
+    historySel: null,
+    following: true
+  };
+  var gps = { watchId: null, pos: null, status: 'idle', errorJa: '' };
+
+  function colorOf(i) { return ROUTE_COLORS[i % ROUTE_COLORS.length]; }
+  function letterOf(i) { return LETTERS[i] || String(i + 1); }
+  function limits() {
+    var l = window.RouteEngine && window.RouteEngine.limits;
+    var min = l && isFinite(l.minMeters) ? l.minMeters : 500;
+    var max = l && isFinite(l.maxMeters) ? l.maxMeters : 30000;
+    return { min: min, max: max };
+  }
+
+  /* ====================== 部品の読み込みチェック ====================== */
+  function missingModules() {
+    var m = [];
+    if (!window.RouteEngine) m.push('ルートを探す部分');
+    if (!window.WalkTracker) m.push('歩いた道を測る部分');
+    if (!window.WalkHistory) m.push('記録を残す部分');
+    return m;
+  }
+  function showModuleError() {
+    var m = missingModules();
+    var box = $('#moduleError');
+    if (!m.length) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = '<span class="msg-title">アプリの一部を読み込めませんでした</span>' +
+      '<p>読み込めなかったもの：' + esc(m.join('、')) + '</p>' +
+      '<p>インターネットにつながっているか確かめてから、ページを読み込み直してください。</p>' +
+      '<button type="button" class="btn" onclick="location.reload()">ページを読み込み直す</button>';
+  }
+
+  /* ====================== 地図 ====================== */
+  var map = null, layers = {};
+  function initMap() {
+    if (!window.L) {
+      var f = document.createElement('div');
+      f.className = 'map-fatal';
+      f.textContent = '地図を読み込めませんでした。インターネットにつながっているか確かめて、ページを読み込み直してください。';
+      $('#mapWrap').appendChild(f);
+      return false;
+    }
+    var center = DEV.start || settings.home || { lat: 36.2, lng: 138.25 };
+    var zoom = (DEV.start || settings.home) ? 15 : 5;
+    map = L.map('map', { zoomControl: false, attributionControl: true, center: [center.lat, center.lng], zoom: zoom, maxZoom: 19 });
+    L.control.zoom({ position: 'topright', zoomInTitle: '大きくする', zoomOutTitle: '小さくする' }).addTo(map);
+    map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+    // 地図：OpenStreetMap Japan が配っている「MapTiler Basic 日本語版」の絵の地図。
+    // 田んぼ・地図記号・お店のマークが出ない、すっきりした地図。{r} は高精細の画面で2倍の細かさの絵を使う印。
+    // ※無料・登録なしのボランティアのサーバー。販売するときは有料の地図サービスに切り替える
+    L.tileLayer('https://tile.openstreetmap.jp/styles/maptiler-basic-ja/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, maxNativeZoom: 19, minZoom: 5,
+      attribution: '© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    ['form', 'routes', 'poi', 'walk', 'history', 'settings'].forEach(function (k) { layers[k] = L.layerGroup(); });
+    if (params.get('debug') === '1') window.__sanpoMap = map; // テスト用
+    map.on('click', onMapClick);
+    map.on('dragstart', function () {
+      if (state.tab === 'search' && state.searchView === 'walking') { state.following = false; $('#btnRecenter').hidden = false; }
+    });
+    if (window.ResizeObserver) new ResizeObserver(function () {
+      map.invalidateSize();
+      // 直前に全体を見せたばかりなら、地図の大きさが変わった後にもう一度合わせる
+      if (lastFit && Date.now() - lastFit.t < 1500) map.fitBounds(lastFit.b, Object.assign({ animate: false }, lastFit.o));
+    }).observe($('#mapWrap'));
+    return true;
+  }
+  function pinIcon(text, kind) {
+    return L.divIcon({ className: 'pin-wrap', iconSize: [0, 0], iconAnchor: [0, 0], html: '<div class="pin-dot"></div><div class="pin ' + (kind || '') + '">' + esc(text) + '</div>' });
+  }
+  function pinMarker(latlng, text, kind) {
+    return L.marker(latlng, { icon: pinIcon(text, kind), keyboard: false, interactive: false, zIndexOffset: 3000 }); // コンビニの印より上に出す
+  }
+  var lastFit = null;
+  function fitTo(bounds, opts) {
+    if (!map || !bounds || !bounds.isValid()) return;
+    var o = Object.assign({ padding: [36, 36], maxZoom: 17, animate: false }, opts || {}); // 動きをつけると、後から動かした表示を上書きすることがあるため
+    map.invalidateSize();
+    map.fitBounds(bounds, o);
+    lastFit = { b: bounds, o: o, t: Date.now() };
+  }
+  var ARROW_SVG = function (c) {
+    return '<svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="10" fill="#fff"/><path d="M6 14.5 11 6l5 8.5-5-2.6z" fill="' + c + '" stroke="' + c + '" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+  };
+  function addArrows(group, coords, color) {
+    if (!coords || coords.length < 2) return;
+    var cum = cumulative(coords), total = cum[cum.length - 1];
+    if (total < 60) return;
+    var spacing = clamp(total / 10, 250, 700);
+    for (var d = spacing * 0.6; d < total - spacing * 0.3; d += spacing) {
+      var a = pointAt(coords, cum, d - 8).p, b = pointAt(coords, cum, d + 8).p, p = pointAt(coords, cum, d).p;
+      var pa = map.project(a, 17), pb = map.project(b, 17);
+      if (pa.distanceTo(pb) < 0.5) continue;
+      var deg = Math.atan2(pb.x - pa.x, -(pb.y - pa.y)) * 180 / Math.PI;
+      L.marker(p, {
+        interactive: false, keyboard: false,
+        icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="arrow" style="transform:rotate(' + deg.toFixed(1) + 'deg)">' + ARROW_SVG(color) + '</div>' })
+      }).addTo(group);
+    }
+  }
+  function syncLayers() {
+    if (!map) return;
+    var want = {
+      form: state.tab === 'search' && (state.searchView === 'form'),
+      routes: state.tab === 'search' && (state.searchView === 'searching' || state.searchView === 'results'),
+      walk: state.tab === 'search' && state.searchView === 'walking',
+      poi: state.tab === 'search' && (state.searchView === 'results' || state.searchView === 'walking') && poiFeature(),
+      history: state.tab === 'history',
+      settings: state.tab === 'settings'
+    };
+    Object.keys(layers).forEach(function (k) {
+      if (want[k] && !map.hasLayer(layers[k])) layers[k].addTo(map);
+      if (!want[k] && map.hasLayer(layers[k])) map.removeLayer(layers[k]);
+    });
+  }
+
+  /* ====================== 画面の切りかえ ====================== */
+  function currentScreenId() {
+    if (state.tab === 'history') return 'scr-history';
+    if (state.tab === 'settings') return 'scr-settings';
+    return { form: 'scr-form', searching: 'scr-searching', results: 'scr-results', walking: 'scr-walk' }[state.searchView];
+  }
+  function render() {
+    var id = currentScreenId();
+    $$('.screen').forEach(function (s) { s.hidden = s.id !== id; });
+    $$('.tab').forEach(function (t) {
+      if (t.dataset.tab === state.tab) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+    });
+    document.body.classList.toggle('walking', state.searchView === 'walking' && state.tab === 'search');
+    if (state.searchView !== 'walking') $('#btnRecenter').hidden = true;
+    syncLayers();
+    renderBanners();
+  }
+  function switchTab(tab) {
+    if (state.searchView === 'walking') return;
+    if (state.pick) cancelPick();
+    state.tab = tab;
+    lastFit = null;
+    setCollapsed(false);
+    if (tab === 'history') renderHistory();
+    if (tab === 'settings') renderSettings();
+    if (tab === 'search') { renderForm(); drawFormLayer(); }
+    render();
+    $('#screens').scrollTop = 0;
+    if (tab === 'search' && state.searchView === 'results') {
+      // 設定で歩幅が変わっているかもしれないので、カードの歩数を作り直す
+      if (state.routes.length && !$('#resultOk').hidden) {
+        $('#routeCards').innerHTML = state.routes.map(function (r, i) { return routeCardHtml(r, i, false); }).join('');
+        selectRoute(state.selected);
+      }
+      fitRoutes();
+    }
+    if (tab === 'search' && state.searchView === 'form' && state.start && map) map.setView([state.start.lat, state.start.lng], Math.max(map.getZoom(), 15));
+  }
+  function setSearchView(v) {
+    state.searchView = v;
+    render();
+    $('#screens').scrollTop = 0;
+  }
+  function setCollapsed(c) {
+    $('#panel').classList.toggle('collapsed', c);
+    $('#handle').setAttribute('aria-expanded', String(!c));
+    $('#handleText').textContent = c ? 'ここをタップしてメニューを開く' : '地図を大きくする';
+  }
+
+  /* ====================== 地図の上のお知らせ ====================== */
+  var walkBanner = { offRoute: null, weak: false, error: null, waiting: false };
+  function renderBanners() {
+    var box = $('#mapTop'), html = '';
+    if (state.pick) {
+      html += '<div class="banner pick"><span class="b-txt">' +
+        (state.pick === 'start' ? '地図をタップして、出発地点を選んでください' : '地図をタップして、家の場所を選んでください') +
+        '</span><button type="button" class="btn btn-small" data-act="cancel-pick">やめる</button></div>';
+    }
+    if (state.tab === 'search' && state.searchView === 'walking') {
+      // 地図に大きく出すのは1枚だけ（曲がり角の案内／つながらない／場所を調べ中）。注意は下に細い帯でつける
+      var g = walkBanner.turn, main = '', strips = '';
+      if (walkBanner.error) main = '<div class="banner err"><span class="b-txt">' + esc(walkBanner.error) + '</span></div>';
+      else if (g) {
+        main = '<div class="banner turn' + (g.soon ? ' soon' : '') + (g.calm ? ' calm' : '') + '" role="status"><span class="t-ico">' + turnSvg(g.dir) + '</span><span class="b-txt">' +
+          '<span class="t-main">' + (g.dist ? '<span class="t-dist">' + esc(g.dist) + '</span>' : '') + '<span class="t-act">' + esc(g.act) + '</span></span>' +
+          (g.after ? '<span class="b-sub">そのあと ' + esc(g.after) + '</span>' : '') + '</span></div>';
+      } else if (walkBanner.waiting) main = '<div class="banner"><span class="b-txt">今いる場所を調べています…<span class="b-sub">空が見える場所だと早くわかります</span></span></div>';
+      if (walkBanner.offRoute != null) {
+        strips += '<div class="strip warn" role="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18v.5"/></svg>ルートから約' + walkBanner.offRoute + 'm離れています</div>';
+      }
+      if (walkBanner.weak && !walkBanner.error) {
+        strips += '<div class="strip weak"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 18h.01M9 18v-3M13 18v-6M17 18V9" /></svg>GPSが弱く、場所が少しずれるかも</div>';
+      }
+      if (main || strips) html += '<div class="walk-guide">' + main + strips + '</div>';
+    }
+    box.innerHTML = html;
+  }
+  $('#mapTop').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act="cancel-pick"]');
+    if (b) cancelPick();
+  });
+
+  /* ====================== お知らせ・確認の窓 ====================== */
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $('#toast');
+    t.textContent = msg; t.hidden = false;
+    // 歩いている間は、上の曲がり角の案内にかぶらないよう少し下に出す
+    t.classList.toggle('low', !!(state.walk && !state.walk.finished && currentScreenId() === 'scr-walk'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 2800);
+  }
+  function openModal(opt) {
+    var card = $('#modalCard');
+    card.className = 'modal-card' + (opt.className ? ' ' + opt.className : '');
+    card.innerHTML = (opt.topHtml || '') + '<h2 id="modalTitle">' + esc(opt.title) + '</h2><div class="m-body">' + (opt.bodyHtml || '') + '</div><div class="modal-actions"></div>';
+    var act = $('.modal-actions', card);
+    (opt.actions || []).forEach(function (a) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn ' + (a.kind || '');
+      b.textContent = a.label;
+      b.addEventListener('click', function () { closeModal(); if (a.onClick) a.onClick(); });
+      act.appendChild(b);
+    });
+    $('#modal').hidden = false;
+    var first = $('button', act);
+    if (first) first.focus();
+  }
+  function closeModal() { $('#modal').hidden = true; }
+
+  /* ====================== 出発地点（GPS） ====================== */
+  function setStart(p, source) {
+    state.start = { lat: p.lat, lng: p.lng, accuracy: p.accuracy == null ? null : p.accuracy };
+    state.startSource = source;
+    renderStartStatus();
+    drawFormLayer();
+    renderSun();
+  }
+  function startGpsWatch() {
+    if (DEV.start) {
+      if (!state.start) { setStart(DEV.start, 'param'); }
+      return;
+    }
+    if (!window.isSecureContext) {
+      gps.status = 'error';
+      gps.errorJa = 'このページは安全な形（アドレスが https で始まる形）で開かれていないため、今いる場所を調べられません。下のボタンで、地図から出発地点を選んでください。';
+      renderStartStatus(); return;
+    }
+    if (!navigator.geolocation) {
+      gps.status = 'error';
+      gps.errorJa = 'このブラウザでは今いる場所を調べられません。下のボタンで、地図から出発地点を選んでください。';
+      renderStartStatus(); return;
+    }
+    if (gps.watchId != null) return;
+    if (!gps.pos) gps.status = 'checking';
+    renderStartStatus();
+    try {
+      gps.watchId = navigator.geolocation.watchPosition(onGpsPos, onGpsErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    } catch (e) {
+      gps.status = 'error'; gps.errorJa = '今いる場所を調べられませんでした。地図から出発地点を選んでください。';
+      renderStartStatus();
+    }
+  }
+  function stopGpsWatch() {
+    if (gps.watchId != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(gps.watchId); } catch (e) {} }
+    gps.watchId = null;
+  }
+  function onGpsPos(p) {
+    var first = !gps.pos;
+    gps.pos = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+    gps.status = 'ok';
+    if (!state.start || state.startSource === 'gps') {
+      setStart(gps.pos, 'gps');
+      if (first && map && state.tab === 'search' && state.searchView === 'form') map.setView([gps.pos.lat, gps.pos.lng], 16);
+    } else renderStartStatus();
+  }
+  function onGpsErr(err) {
+    if (err.code === 1) {
+      gps.status = 'error';
+      gps.errorJa = '位置情報（今いる場所）を使うことが許可されていません。ブラウザやスマホの設定で位置情報を「許可」にしてから読み込み直すか、地図から出発地点を選んでください。';
+      stopGpsWatch();
+    } else if (err.code === 3) {
+      if (!gps.pos) { gps.status = 'checking'; gps.errorJa = ''; }
+      renderStartStatus(); return;
+    } else {
+      if (!gps.pos) {
+        gps.status = 'error';
+        gps.errorJa = '今いる場所がわかりませんでした。建物の外など空が見える場所に出ると、わかりやすくなります。地図から出発地点を選ぶこともできます。';
+      }
+    }
+    renderStartStatus();
+  }
+  function accuracyText(acc) {
+    if (acc == null || !isFinite(acc)) return '';
+    if (acc >= 1000) return '誤差 約' + (acc / 1000).toFixed(1) + 'km';
+    return '誤差 約' + Math.max(10, Math.round(acc / 10) * 10) + 'm';
+  }
+  function renderStartStatus() {
+    var box = $('#startStatus'), txt = $('.txt', box), cls = 'status ';
+    var useGpsBtn = $('#btnUseGps');
+    useGpsBtn.hidden = true;
+    if (state.startSource === 'param') {
+      cls += 'picked'; txt.textContent = 'テスト用に指定された地点から出発します';
+    } else if (state.startSource === 'map') {
+      cls += 'picked'; txt.textContent = '地図で選んだ場所から出発します';
+      useGpsBtn.hidden = !(gps.pos || gps.status === 'checking');
+    } else if (gps.status === 'ok' && state.start) {
+      cls += 'ok';
+      var acc = state.start.accuracy;
+      txt.textContent = '今いる場所がわかりました（' + accuracyText(acc) + '）' + (acc > 150 ? '。場所が少しずれているかもしれません' : '');
+    } else if (gps.status === 'error') {
+      cls += 'error'; txt.textContent = gps.errorJa;
+    } else {
+      cls += 'checking'; txt.textContent = '今いる場所を調べています…';
+    }
+    box.className = cls;
+    $('#btnPickStart').textContent = state.startSource === 'map' ? '地図で選び直す' : '地図で出発地点を選ぶ';
+  }
+
+  /* ====================== 地図をタップして選ぶ ====================== */
+  function enterPick(kind) {
+    state.pick = kind;
+    if (window.matchMedia('(max-width: 899px)').matches) setCollapsed(true);
+    renderBanners();
+  }
+  function cancelPick() {
+    state.pick = null;
+    setCollapsed(false);
+    renderBanners();
+  }
+  function onMapClick(e) {
+    if (!state.pick) return;
+    var kind = state.pick;
+    state.pick = null;
+    setCollapsed(false);
+    renderBanners();
+    var p = { lat: e.latlng.lat, lng: e.latlng.lng };
+    if (kind === 'start') {
+      setStart(p, 'map');
+      toast('出発地点を決めました');
+    } else if (kind === 'home') {
+      setHome({ lat: p.lat, lng: p.lng, labelJa: '地図で選んだ場所' });
+    }
+  }
+
+  /* ====================== 1. ルートを探す（入力） ====================== */
+  // 入れ方ごとの決まり（距離・歩数・時間）
+  function modeOf() { return settings.inputMode === 'steps' || settings.inputMode === 'minutes' ? settings.inputMode : 'km'; }
+  function lastOf(mode) { return mode === 'km' ? settings.lastKm : mode === 'steps' ? settings.lastSteps : settings.lastMin; }
+  function amountMeters() {
+    var v = parseNum($('#amount').value), mode = modeOf();
+    if (!isFinite(v) || v <= 0) return NaN;
+    if (mode === 'km') return v * 1000;
+    if (mode === 'steps') return v * settings.strideCm / 100;
+    return v * speedMpm();
+  }
+  function renderForm() {
+    var mode = modeOf(), km = mode === 'km';
+    $$('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === mode)); });
+    $('#unit').textContent = km ? 'km' : mode === 'steps' ? '歩' : '分';
+    $('#amount').setAttribute('inputmode', km ? 'decimal' : 'numeric');
+    var cur = lastOf(mode);
+    if (document.activeElement !== $('#amount')) $('#amount').value = km ? trimZero(cur) : String(Math.round(cur));
+    var chips = km ? KM_CHIPS : mode === 'steps' ? STEP_CHIPS : MIN_CHIPS;
+    $('#chips').innerHTML = chips.map(function (c) {
+      return '<button type="button" class="chip" data-v="' + c + '" aria-pressed="' + (+cur === c) + '">' + (km ? c + 'km' : mode === 'steps' ? fmtNum(c) + '歩' : c + '分') + '</button>';
+    }).join('');
+    $$('[data-goal]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.goal === settings.goalType)); });
+    var needHome = settings.goalType === 'home';
+    $('#homeMissing').hidden = !(needHome && !settings.home);
+    $('#homeInfo').hidden = !(needHome && settings.home);
+    if (needHome && settings.home) $('#homeInfo').textContent = 'ゴール：' + settings.home.labelJa;
+    $('#searchError').hidden = true;
+    updateConversion();
+    renderStartStatus();
+    renderCourses();
+  }
+  function validateAmount() {
+    var lim = limits(), m = amountMeters(), mode = modeOf();
+    var raw = $('#amount').value.trim();
+    if (!raw) return '歩く量を入れてください';
+    if (!isFinite(m)) return '数字で入れてください';
+    if (mode === 'km') {
+      if (m < lim.min - 0.5 || m > lim.max + 0.5) return trimZero((lim.min / 1000).toFixed(1)) + 'km から ' + trimZero((lim.max / 1000).toFixed(1)) + 'km の間で入れてください';
+      return null;
+    }
+    var sb = mode === 'steps' ? stepBounds() : minuteBounds(), v = parseNum(raw);
+    if (v < sb.min || v > sb.max) return mode === 'steps'
+      ? fmtNum(sb.min) + '歩 から ' + fmtNum(sb.max) + '歩 の間で入れてください'
+      : sb.min + '分 から ' + fmtMinutes(sb.max) + ' の間で入れてください';
+    return null;
+  }
+  // 歩数で入れられる範囲（メッセージと入力チェックで同じ数を使う）
+  function stepBounds() {
+    var lim = limits(), stride = settings.strideCm / 100;
+    return { min: Math.ceil(lim.min / stride - 1e-9), max: Math.floor(lim.max / stride + 1e-9) };
+  }
+  // 時間（分）で入れられる範囲。歩く速さで距離に直す
+  function minuteBounds() {
+    var lim = limits(), sp = speedMpm();
+    return { min: Math.ceil(lim.min / sp - 1e-9), max: Math.floor(lim.max / sp + 1e-9) };
+  }
+  function updateConversion() {
+    var m = amountMeters(), mode = modeOf();
+    var err = validateAmount();
+    var conv = $('#convert'), e = $('#amountError');
+    if (isFinite(m)) {
+      var v = parseNum($('#amount').value);
+      conv.hidden = false;
+      conv.textContent = mode === 'km'
+        ? trimZero(v) + 'km ＝ 約' + fmtNum(stepsFor(m)) + '歩・' + approxMinutes(walkMinutes(m))
+        : mode === 'steps'
+          ? fmtNum(v) + '歩 ＝ 約' + fmtDist(m) + '・' + approxMinutes(walkMinutes(m))
+          : fmtMinutes(v) + ' ＝ 約' + fmtDist(m) + '・約' + fmtNum(stepsFor(m)) + '歩';
+    } else conv.hidden = true;
+    e.hidden = !err;
+    e.textContent = err || '';
+    renderSun();
+    return err;
+  }
+  function rememberAmount() {
+    var v = parseNum($('#amount').value), mode = modeOf();
+    if (!isFinite(v) || v <= 0 || validateAmount()) return; // 範囲外の数は覚えない
+    if (mode === 'km') settings.lastKm = v; else if (mode === 'steps') settings.lastSteps = Math.round(v); else settings.lastMin = Math.round(v);
+    saveSettings();
+    $$('#chips .chip').forEach(function (c) { c.setAttribute('aria-pressed', String(+c.dataset.v === v)); });
+  }
+  function stepAmount(dir) {
+    var mode = modeOf(), km = mode === 'km', lim = limits();
+    var step = km ? 0.5 : mode === 'steps' ? 1000 : 5;
+    var v = parseNum($('#amount').value);
+    if (!isFinite(v)) v = lastOf(mode);
+    v = dir > 0 ? Math.floor(v / step + 1e-9) * step + step : Math.ceil(v / step - 1e-9) * step - step;
+    var b = km ? { min: lim.min / 1000, max: lim.max / 1000 } : mode === 'steps' ? stepBounds() : minuteBounds();
+    v = clamp(v, b.min, b.max);
+    $('#amount').value = km ? trimZero(v.toFixed(1)) : String(Math.round(v));
+    rememberAmount(); updateConversion();
+  }
+
+  /* ---- 日の出・日の入り（sun.js が無いときは出さない） ---- */
+  function sunFeature() { return !!(window.Sun && typeof window.Sun.times === 'function'); }
+  function fmtHM(d) { var m = d.getMinutes(); return d.getHours() + ':' + (m < 10 ? '0' : '') + m; }
+  var SUN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 18h18"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 6v3M5 11l2 1.5M19 11l-2 1.5"/></svg>';
+  var MOON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
+  function sunInfo(now) {
+    if (!sunFeature() || !state.start) return null;
+    var t;
+    try { t = window.Sun.times(now, state.start.lat, state.start.lng); } catch (e) { return null; }
+    if (!t) return null;
+    var line = null, until = function (d) { return fmtMinutes((d - now) / 60000); };
+    if (t.sunrise && now < t.sunrise) line = '今日の日の出 <b>' + fmtHM(t.sunrise) + '</b>（あと' + until(t.sunrise) + '）';
+    else if (t.sunset && now < t.sunset) line = '今日の日の入り <b>' + fmtHM(t.sunset) + '</b>（あと' + until(t.sunset) + '）';
+    else if (t.sunset) line = '今日の日の入り <b>' + fmtHM(t.sunset) + '</b>（もう日が沈みました）';
+    var darkNow = false;
+    try { darkNow = typeof window.Sun.isDark === 'function' ? !!window.Sun.isDark(now, state.start.lat, state.start.lng) : false; } catch (e) {}
+    var m = amountMeters(), darkLater = false;
+    if (!darkNow && isFinite(m)) {
+      var end = new Date(+now + walkMinutes(m) * 60000), dusk = t.dusk || t.sunset;
+      darkLater = !!(dusk && now < dusk && end > dusk);
+    }
+    return { line: line, darkNow: darkNow, darkLater: darkLater };
+  }
+  function renderSun() {
+    var box = $('#sunBox');
+    if (!box) return;
+    var info = sunInfo(new Date());
+    if (!info || (!info.line && !info.darkNow && !info.darkLater)) { box.hidden = true; box.innerHTML = ''; return; }
+    var html = info.line ? '<p class="sun-line">' + SUN_SVG + '<span>' + info.line + '</span></p>' : '';
+    if (info.darkNow || info.darkLater) {
+      html += '<p class="sun-warn">' + MOON_SVG + '<span>' + (info.darkNow
+        ? '今は外が暗い時間です。明るい道を選び、ライトを持って出かけましょう'
+        : '歩き終わるころには暗くなります。明るい道を選び、ライトを持って出かけましょう') + '</span></p>';
+    }
+    box.innerHTML = html; box.hidden = false;
+  }
+  /* ---- いつものコース（courses.js が無いときは出さない） ---- */
+  function coursesFeature() { return !!(window.WalkCourses && typeof window.WalkCourses.list === 'function' && typeof window.WalkCourses.save === 'function'); }
+  function courseList() {
+    if (!coursesFeature()) return [];
+    try { return (window.WalkCourses.list() || []).filter(function (c) { return c && c.route && c.route.coords && c.route.coords.length > 1; }); } catch (e) { return []; }
+  }
+  function courseMeters(c) { return isFinite(c.distanceMeters) ? c.distanceMeters : (c.route && c.route.distanceMeters) || 0; }
+  function courseSubText(c) {
+    var m = courseMeters(c);
+    return fmtDist(m) + '・約' + fmtNum(stepsFor(m)) + '歩・' + approxMinutes(walkMinutes(m)) + '・' + (c.goalType === 'home' ? '家に戻る' : 'もとの場所に戻る');
+  }
+  function courseRowHtml(c) {
+    return '<li class="course-row"><span class="c-info"><span class="c-name">' + esc(c.nameJa || 'いつものコース') + '</span><span class="c-sub">' + esc(courseSubText(c)) + '</span></span>' +
+      '<button type="button" class="btn btn-small" data-course-walk="' + esc(c.id) + '">このコースで歩く</button></li>';
+  }
+  function renderCourses() {
+    var sec = $('#courseSec'), list = courseList();
+    if (!list.length) { sec.hidden = true; return; }
+    sec.hidden = false;
+    $('#courseList').innerHTML = list.slice(0, 3).map(courseRowHtml).join('');
+    $('#btnAllCourses').hidden = list.length <= 3;
+    $('#btnAllCourses').textContent = 'すべて見る（' + list.length + '本）';
+  }
+  function openAllCourses() {
+    var list = courseList();
+    openModal({
+      title: 'いつものコース',
+      bodyHtml: '<ul class="course-list">' + list.map(courseRowHtml).join('') + '</ul>',
+      actions: [{ label: '閉じる', kind: '' }]
+    });
+  }
+  function askStartCourse(id) {
+    var c = null;
+    try { c = window.WalkCourses.get(id); } catch (e) {}
+    if (!c || !c.route || !c.route.coords) { toast('このコースを読み込めませんでした'); renderCourses(); return; }
+    var here = state.start, from = c.start || { lat: c.route.coords[0][0], lng: c.route.coords[0][1] };
+    var away = here ? haversine([here.lat, here.lng], [from.lat, from.lng]) : 0;
+    if (away > 200) {
+      openModal({
+        title: 'スタート地点から約' + fmtDist(away < 1000 ? Math.round(away / 10) * 10 : away) + '離れています。このまま始めますか？',
+        bodyHtml: '<p>コースのスタート地点まで歩いてから始めると、道案内が正しく出ます。</p>',
+        actions: [
+          { label: 'このまま始める', kind: 'btn-primary', onClick: function () { startCourse(c); } },
+          { label: 'やめる', kind: '' }
+        ]
+      });
+      return;
+    }
+    startCourse(c);
+  }
+  function startCourse(c) {
+    if (state.abort) { try { state.abort.abort(); } catch (e) {} }
+    state.searchToken++;
+    elevCancel();
+    var from = c.start || { lat: c.route.coords[0][0], lng: c.route.coords[0][1] };
+    var route = Object.assign({}, c.route, { labelJa: c.nameJa || c.route.labelJa });
+    if (!isFinite(route.distanceMeters)) route.distanceMeters = courseMeters(c);
+    state.lastQuery = { start: { lat: from.lat, lng: from.lng }, goal: c.goalType === 'home' && c.goal ? { lat: c.goal.lat, lng: c.goal.lng } : null, goalType: c.goalType === 'home' ? 'home' : 'start', targetMeters: Math.round(courseMeters(c)), variant: 0, courseId: c.id };
+    state.routes = [route]; state.notice = null; state.selected = 0;
+    showResults();
+    try { window.WalkCourses.markUsed(c.id); } catch (e) {}
+    startWalk({ courseId: c.id });
+  }
+  $('#scr-form').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-course-walk]');
+    if (b) askStartCourse(b.dataset.courseWalk);
+  });
+  $('#modalCard').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-course-walk]');
+    if (b) { closeModal(); askStartCourse(b.dataset.courseWalk); }
+  });
+  // 設定：名前を変える・消す
+  function renderCourseManage() {
+    var sec = $('#coursesSetSec');
+    if (!coursesFeature()) { sec.hidden = true; return; }
+    sec.hidden = false;
+    var list = courseList(), box = $('#courseManage');
+    if (!list.length) { box.innerHTML = '<p class="lead">まだありません。歩き終わったときに「いつものコース」に保存できます。</p>'; return; }
+    box.innerHTML = '<ul class="course-list">' + list.map(function (c) {
+      return '<li class="course-row" style="flex-wrap:wrap"><span class="c-info"><span class="c-name">' + esc(c.nameJa || 'いつものコース') + '</span><span class="c-sub">' + esc(fmtDist(courseMeters(c))) + (c.useCount ? '・' + fmtNum(c.useCount) + '回歩いた' : '') + '</span></span>' +
+        '<span class="c-acts"><button type="button" class="btn btn-small" data-course-rename="' + esc(c.id) + '">名前を変える</button><button type="button" class="btn btn-small btn-danger" data-course-del="' + esc(c.id) + '">消す</button></span></li>';
+    }).join('') + '</ul>';
+  }
+  $('#courseManage').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-course-rename]'), d = e.target.closest('[data-course-del]');
+    var id = (r || d) && (r || d).dataset[r ? 'courseRename' : 'courseDel'];
+    if (!id) return;
+    var c = null; try { c = window.WalkCourses.get(id); } catch (err) {}
+    if (!c) { renderCourseManage(); return; }
+    if (r) {
+      openModal({
+        title: 'コースの名前を変える',
+        bodyHtml: '<label class="hint" for="renameIn">新しい名前</label><input class="text-in" id="renameIn" maxlength="30" style="width:100%;margin-top:4px" value="' + esc(c.nameJa || '') + '">',
+        actions: [
+          { label: 'この名前にする', kind: 'btn-primary', onClick: function () {
+            var v = ($('#renameIn').value || '').trim();
+            if (!v) { toast('名前を入れてください'); return; }
+            try { window.WalkCourses.rename(id, v); toast('名前を変えました'); } catch (err) { toast('名前を変えられませんでした'); }
+            renderCourseManage(); renderCourses();
+          } },
+          { label: 'やめる', kind: '' }
+        ]
+      });
+    } else {
+      openModal({
+        title: '「' + (c.nameJa || 'このコース') + '」を消しますか？',
+        bodyHtml: '<p>消したコースは元に戻せません。歩いた記録は消えません。</p>',
+        actions: [
+          { label: '消す', kind: 'btn-danger-fill', onClick: function () {
+            try { window.WalkCourses.remove(id); toast('コースを消しました'); } catch (err) { toast('コースを消せませんでした'); }
+            renderCourseManage(); renderCourses();
+          } },
+          { label: 'やめる', kind: '' }
+        ]
+      });
+    }
+  });
+
+  function drawFormLayer() {
+    if (!map) return;
+    layers.form.clearLayers();
+    if (state.start) {
+      var ll = [state.start.lat, state.start.lng];
+      if (state.startSource === 'gps' && state.start.accuracy) {
+        L.circle(ll, { radius: state.start.accuracy, color: '#1A73E8', weight: 1, fillOpacity: 0.12, interactive: false }).addTo(layers.form);
+      }
+      pinMarker(ll, 'スタート', 'start').addTo(layers.form);
+    }
+    if (settings.goalType === 'home' && settings.home) pinMarker([settings.home.lat, settings.home.lng], '家', 'home').addTo(layers.form);
+  }
+
+  /* ====================== 2・3. 探す → 結果 ====================== */
+  var routeViews = []; // {line, casing, hit, letter}
+  function clearRoutes() {
+    if (map) layers.routes.clearLayers();
+    routeViews = [];
+    poiReset();
+  }
+  function addRouteView(route, i) {
+    var c = colorOf(i), ll = route.coords;
+    var casing = L.polyline(ll, { color: '#fff', weight: 10, opacity: 0.9, interactive: false, lineJoin: 'round' });
+    var line = L.polyline(ll, { color: c, weight: 6, opacity: 0.95, interactive: false, lineJoin: 'round' });
+    var hit = L.polyline(ll, { color: c, weight: 24, opacity: 0, interactive: true });
+    hit.on('click', function (e) { L.DomEvent.stopPropagation(e); if (state.searchView === 'results') selectRoute(i); });
+    var cum = cumulative(ll), mid = pointAt(ll, cum, cum[cum.length - 1] * (0.32 + 0.12 * (i % 3))).p;
+    var letter = L.marker(mid, {
+      keyboard: false,
+      icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="route-letter" style="--c:' + c + '">' + letterOf(i) + '</div>' })
+    });
+    letter.on('click', function () { if (state.searchView === 'results') selectRoute(i); });
+    [casing, line, hit, letter].forEach(function (l) { l.addTo(layers.routes); });
+    routeViews[i] = { casing: casing, line: line, hit: hit, letter: letter, arrows: null };
+  }
+  function drawEndpointMarkers() {
+    var q = state.lastQuery;
+    if (!q) return;
+    if (q.goal) {
+      pinMarker([q.start.lat, q.start.lng], 'スタート', 'start').addTo(layers.routes);
+      pinMarker([q.goal.lat, q.goal.lng], '家（ゴール）', 'home').addTo(layers.routes);
+    } else {
+      pinMarker([q.start.lat, q.start.lng], 'スタート・ゴール', 'start').addTo(layers.routes);
+    }
+  }
+  function fitRoutes() {
+    if (!map || !state.routes.length) return;
+    var b = L.latLngBounds([]);
+    state.routes.forEach(function (r) { b.extend(L.latLngBounds(r.coords)); });
+    if (state.lastQuery) b.extend([state.lastQuery.start.lat, state.lastQuery.start.lng]);
+    fitTo(b);
+  }
+  function selectRoute(i) {
+    state.selected = i;
+    routeViews.forEach(function (v, j) {
+      if (!v) return;
+      var sel = j === i;
+      v.line.setStyle({ weight: sel ? 7 : 4, opacity: sel ? 1 : 0.55 });
+      v.casing.setStyle({ opacity: sel ? 0.95 : 0 });
+      var el = v.letter.getElement();
+      if (el && el.firstChild) el.firstChild.classList.toggle('faded', !sel);
+      v.letter.setZIndexOffset(sel ? 500 : 0);
+      if (v.arrows) { layers.routes.removeLayer(v.arrows); v.arrows = null; }
+    });
+    var v = routeViews[i];
+    if (v) {
+      v.casing.bringToFront(); v.line.bringToFront();
+      v.arrows = L.layerGroup();
+      addArrows(v.arrows, state.routes[i].coords, colorOf(i));
+      v.arrows.addTo(layers.routes);
+      routeViews.forEach(function (o) { if (o) o.hit.bringToFront(); });
+    }
+    $$('#routeCards .route-card').forEach(function (c) { c.setAttribute('aria-pressed', String(+c.dataset.i === i)); });
+    if (state.searchView === 'results' && state.routes[i]) poiShowFor(state.routes[i]);
+  }
+  function routeCardHtml(r, i, pending) {
+    var label = r.labelJa || ('ルート' + letterOf(i));
+    return '<button type="button" class="route-card' + (pending ? ' pending' : '') + '" data-i="' + i + '" style="--c:' + colorOf(i) + '" aria-pressed="false"' + (pending ? ' tabindex="-1"' : '') + '>' +
+      '<span class="badge" aria-hidden="true">' + letterOf(i) + '</span>' +
+      '<span class="rc-body"><span class="rc-name">' + esc(label) + '<span class="rc-check">選択中</span></span>' +
+      '<span class="rc-stats"><span class="nw"><b>' + fmtDist(r.distanceMeters) + '</b>・</span><span class="nw">約' + fmtNum(stepsFor(r.distanceMeters)) + '歩・</span><span class="nw">' + approxMinutes(walkMinutes(r.distanceMeters)) + '</span></span>' +
+      '<span class="rc-slope-slot">' + slopeHtml(r) + '</span></span>' +
+      '</button>';
+  }
+  function buildQuery() {
+    var err = updateConversion();
+    if (err) return { error: err, focus: '#amount' };
+    if (!state.start) {
+      return { error: gps.status === 'error' ? '出発地点がわかりません。「地図で出発地点を選ぶ」で選んでください。' : '今いる場所を調べています。わかるまで少し待つか、「地図で出発地点を選ぶ」で選んでください。' };
+    }
+    var goal = null;
+    if (settings.goalType === 'home') {
+      if (!settings.home) return { error: '家の場所が登録されていません。「家の場所を登録する」から登録してください。' };
+      goal = { lat: settings.home.lat, lng: settings.home.lng };
+    }
+    return { start: { lat: state.start.lat, lng: state.start.lng }, goal: goal, goalType: settings.goalType, targetMeters: Math.round(amountMeters()), variant: 0 };
+  }
+  function onSearchClick() {
+    var q = buildQuery();
+    if (q.error) {
+      var e = $('#searchError'); e.textContent = q.error; e.hidden = false;
+      if (q.focus) $(q.focus).focus();
+      return;
+    }
+    rememberAmount();
+    return runSearch(q);
+  }
+  function runSearch(q) {
+    if (!window.RouteEngine || typeof window.RouteEngine.generateRoutes !== 'function') {
+      state.searchError = 'ルートを探す部分を読み込めていません。ページを読み込み直してください。';
+      state.lastQuery = q; showFail(); return Promise.resolve();
+    }
+    if (state.abort) { try { state.abort.abort(); } catch (e) {} }
+    var token = ++state.searchToken;
+    var ctrl = new AbortController();
+    state.abort = ctrl;
+    state.lastQuery = q;
+    state.routes = []; state.notice = null; state.searchError = null; state.selected = 0;
+    elevCancel();
+    clearRoutes();
+    $('#pendingCards').innerHTML = '';
+    $('#progressText').textContent = 'ルートを探しています…';
+    setSearchView('searching');
+    if (map) map.setView([q.start.lat, q.start.lng], Math.max(map.getZoom(), 14));
+    var pending = [];
+    elevPending = pending;
+    var p;
+    try {
+      p = Promise.resolve(window.RouteEngine.generateRoutes({
+        start: q.start, goal: q.goal, targetMeters: q.targetMeters, count: 3, variant: q.variant,
+        signal: ctrl.signal,
+        onProgress: function (textJa) { if (token === state.searchToken && textJa) $('#progressText').textContent = textJa; },
+        onRoute: function (route) {
+          if (token !== state.searchToken || !route || !route.coords) return;
+          var i = pending.length; pending.push(route);
+          addRouteView(route, i);
+          elevQueue(route);
+          $('#pendingCards').insertAdjacentHTML('beforeend', routeCardHtml(route, i, true));
+          if (pending.length === 1) fitTo(L.latLngBounds(route.coords));
+        }
+      }));
+    } catch (e) { p = Promise.reject(e); }
+    return p.then(function (res) {
+      if (token !== state.searchToken) return;
+      state.abort = null;
+      var routes = (res && res.routes || []).filter(function (r) { return r && r.coords && r.coords.length > 1; }).slice(0, 3);
+      if (!routes.length) {
+        state.searchError = 'この条件で歩けるルートが見つかりませんでした。距離を変えるか、出発地点を変えて、もう一度ためしてください。';
+        showFail(); return;
+      }
+      state.routes = routes;
+      state.notice = res.noticeJa || null;
+      showResults();
+      routes.forEach(elevQueue);
+    }, function (err) {
+      if (token !== state.searchToken) return;
+      state.abort = null;
+      if (ctrl.signal.aborted || (err && err.name === 'AbortError')) {
+        clearRoutes(); setSearchView('form'); drawFormLayer();
+        toast('ルートを探すのをやめました');
+        return;
+      }
+      if (err && err.messageJa) state.searchError = err.messageJa;
+      else {
+        state.searchError = 'ルートを探している途中で問題が起きました。インターネットにつながっているか確かめて、もう一度ためしてください。';
+        if (window.console) console.warn(err);
+      }
+      showFail();
+    });
+  }
+  function showResults() {
+    clearRoutes();
+    state.routes.forEach(addRouteView);
+    drawEndpointMarkers();
+    var n = state.routes.length;
+    var shortest = n === 1 && state.routes[0].type === 'shortest';
+    var fromCourse = !!(state.lastQuery && state.lastQuery.courseId);
+    $('#resultTitle').textContent = fromCourse ? 'いつものコース' : shortest ? '家までのいちばん近い道' : (n === 1 ? 'ルートが1本見つかりました' : 'ルートが' + n + '本見つかりました');
+    $('#resultLead').textContent = n > 1 ? '地図の線か、下の中から歩くルートを選んでください。矢印の向きに進みます。' : '地図の矢印の向きに進みます。';
+    var nb = $('#notice');
+    if (state.notice) { nb.hidden = false; nb.textContent = state.notice; } else nb.hidden = true;
+    $('#routeCards').innerHTML = state.routes.map(function (r, i) { return routeCardHtml(r, i, false); }).join('');
+    $('#btnAnother').hidden = shortest; // 最短ルートしかないときは、別のルートは出せない
+    $('#resultOk').hidden = false; $('#resultFail').hidden = true;
+    setSearchView('results');
+    selectRoute(0);
+    fitRoutes();
+    if (fromCourse) state.routes.forEach(elevQueue);
+  }
+  function showFail() {
+    clearRoutes();
+    if (state.lastQuery && map) pinMarker([state.lastQuery.start.lat, state.lastQuery.start.lng], 'スタート', 'start').addTo(layers.routes);
+    $('#failMsg').textContent = state.searchError;
+    $('#resultOk').hidden = true; $('#resultFail').hidden = false;
+    setSearchView('results');
+  }
+  function backToForm() {
+    if (state.abort) { try { state.abort.abort(); } catch (e) {} }
+    state.searchToken++;
+    lastFit = null;
+    elevCancel();
+    clearRoutes();
+    state.routes = [];
+    setSearchView('form');
+    renderForm(); drawFormLayer();
+    if (state.start && map) map.setView([state.start.lat, state.start.lng], Math.max(15, Math.min(map.getZoom(), 16)));
+  }
+
+  /* ====================== 坂の多さ（elevation.js が無いときは出さない） ====================== */
+  function elevFeature() { return !!(window.Elevation && typeof window.Elevation.profile === 'function'); }
+  var elev = { queue: [], busy: null, abort: null };
+  var SLOPE_SVG = {
+    flat: '<svg viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 10h20"/></svg>',
+    some: '<svg viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12 8 7l5 2 8-6"/></svg>',
+    hilly: '<svg viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 13 6 3l4 6 3-4 8 8"/></svg>'
+  };
+  function slopeHtml(r) {
+    var p = r && r._slope;
+    if (!p || !p.levelJa) return '';
+    var key = SLOPE_SVG[p.levelKey] ? p.levelKey : 'some';
+    return '<span class="rc-slope ' + key + '">' + SLOPE_SVG[key] + esc(p.levelJa) + '（上り 計' + fmtNum(p.climbMeters || 0) + 'm）</span>';
+  }
+  function elevCancel() {
+    elev.queue = [];
+    if (elev.abort) { try { elev.abort.abort(); } catch (e) {} }
+    elev.abort = null; elev.busy = null;
+  }
+  // ルートを1本ずつ順番に調べる（一度にたくさん問い合わせない）
+  function elevQueue(route) {
+    if (!elevFeature() || !route || !route.coords || route._slope || route._slopeFailed) return;
+    if (elev.busy === route || elev.queue.indexOf(route) >= 0) return;
+    elev.queue.push(route);
+    elevNext();
+  }
+  function elevNext() {
+    if (elev.busy || !elev.queue.length) return;
+    var route = elev.queue.shift(), ctrl = new AbortController();
+    elev.busy = route; elev.abort = ctrl;
+    var p;
+    try { p = Promise.resolve(window.Elevation.profile(route.coords, { signal: ctrl.signal })); } catch (e) { p = Promise.reject(e); }
+    p.then(function (res) {
+      if (ctrl.signal.aborted) return;
+      if (res && res.levelJa) route._slope = res; else route._slopeFailed = true;
+    }, function () {
+      if (!ctrl.signal.aborted) route._slopeFailed = true; // 調べられなかったときは、坂の表示を出さないだけ
+    }).then(function () {
+      if (elev.abort !== ctrl) return;
+      elev.busy = null; elev.abort = null;
+      refreshSlopes();
+      elevNext();
+    });
+  }
+  function refreshSlopes() {
+    $$('.route-card').forEach(function (c) {
+      var list = c.closest('#pendingCards') ? null : state.routes;
+      var r = list ? list[+c.dataset.i] : elevPending[+c.dataset.i];
+      var slot = $('.rc-slope-slot', c);
+      if (slot && r) slot.innerHTML = slopeHtml(r);
+    });
+  }
+  var elevPending = [];
+
+  /* ====================== コンビニ・トイレ ====================== */
+  // poi.js が無いときは、この機能ごと出さない
+  function poiFeature() { return !!(window.Poi && typeof window.Poi.fetchAlongRoute === 'function'); }
+  var POI_KINDS = { convenience: 'コンビニ', toilets: 'トイレ' };
+  var POI_SVG = {
+    convenience: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 9.5 4.5 4h15L21 9.5"/><path d="M3 9.5c0 1.4 1.2 2.5 2.6 2.5s2.6-1.1 2.6-2.5c0 1.4 1.2 2.5 2.6 2.5h.4c1.4 0 2.6-1.1 2.6-2.5 0 1.4 1.2 2.5 2.6 2.5S21 10.9 21 9.5"/><path d="M5 12v8h14v-8"/><path d="M10 20v-5h4v5"/></svg>',
+    toilets: 'WC'
+  };
+  function poiIconHtml(kind) { return '<span class="poi-ico ' + kind + '" aria-hidden="true">' + (POI_SVG[kind] || '') + '</span>'; }
+  var poi = {
+    show: { convenience: true, toilets: true },
+    cache: typeof Map === 'function' ? new Map() : null, // ルートごとに覚えておく（同じルートは2回取りに行かない）
+    route: null,   // 今、地図に出している（または取りに行っている）ルート
+    abort: null
+  };
+  function poiEntry(route) { return poi.cache ? poi.cache.get(route) : route.__poi; }
+  function poiSetEntry(route, e) { if (poi.cache) poi.cache.set(route, e); else route.__poi = e; }
+  function poiCancel() {
+    if (poi.abort) { try { poi.abort.abort(); } catch (e) {} }
+    poi.abort = null;
+  }
+  function poiReset() {
+    poiCancel();
+    poi.route = null;
+    if (poi.cache) poi.cache.clear();
+    if (map && layers.poi) layers.poi.clearLayers();
+    renderPoiBars();
+  }
+  // 選んだルートのコンビニ・トイレを出す（まだなら取りに行く）
+  function poiShowFor(route) {
+    if (!poiFeature() || !route || !route.coords) { renderPoiBars(); return; }
+    if (poi.route !== route) poiCancel(); // ちがうルートを選んだら、前の問い合わせはやめる
+    poi.route = route;
+    var e = poiEntry(route);
+    if (!e || e.status === 'aborted') {
+      e = { status: 'loading', list: [], msg: '' };
+      poiSetEntry(route, e);
+      var ac = typeof AbortController === 'function' ? new AbortController() : null;
+      poi.abort = ac;
+      var p;
+      try {
+        p = window.Poi.fetchAlongRoute(route.coords, { kinds: ['convenience', 'toilets'], bufferMeters: 150, signal: ac ? ac.signal : undefined });
+      } catch (err) { p = Promise.reject(err); }
+      Promise.resolve(p).then(function (list) {
+        e.status = 'ok';
+        e.list = (Array.isArray(list) ? list : []).filter(function (x) { return x && POI_KINDS[x.kind] && isFinite(x.lat) && isFinite(x.lng); })
+          .sort(function (a, b) { return (a.atMeters || 0) - (b.atMeters || 0); });
+      }, function (err) {
+        if (err && (err.name === 'AbortError' || err.code === 'aborted')) { e.status = 'aborted'; return; }
+        e.status = 'err';
+        e.msg = (err && err.messageJa) || 'コンビニ・トイレの場所を調べられませんでした。';
+      }).then(function () {
+        if (poi.abort === ac) poi.abort = null;
+        if (poi.route !== route) return;
+        if (e.status === 'aborted') { poiShowFor(route); return; } // やめた直後に同じルートを選び直したとき
+        drawPoi(); renderPoiBars();
+        if (state.walk) updateWalkPoi(state.walk.lastState);
+      });
+    }
+    drawPoi();
+    renderPoiBars();
+  }
+  function poiOffText(m) {
+    if (!isFinite(m) || m <= 15) return 'ルートのすぐそば';
+    return 'ルートから約' + fmtDist(Math.round(m / 10) * 10);
+  }
+  function drawPoi() {
+    if (!map || !layers.poi) return;
+    layers.poi.clearLayers();
+    var e = poi.route && poiEntry(poi.route);
+    if (!e || e.status !== 'ok') return;
+    e.list.forEach(function (x) {
+      if (!poi.show[x.kind]) return;
+      var name = x.nameJa || POI_KINDS[x.kind];
+      var brand = x.brandJa && String(name).indexOf(x.brandJa) < 0 ? '<br>' + esc(x.brandJa) : '';
+      L.marker([x.lat, x.lng], {
+        keyboard: false, zIndexOffset: 300, title: name,
+        icon: L.divIcon({ className: 'poi-mark', iconSize: [0, 0], html: poiIconHtml(x.kind) })
+      }).bindPopup('<div class="poi-pop"><b>' + esc(name) + '</b>' + brand + '<br><span class="off">' + poiOffText(x.offMeters) + '</span></div>', { closeButton: true, autoPanPadding: [20, 60] })
+        .addTo(layers.poi);
+    });
+  }
+  function poiBarHtml() {
+    var e = poi.route && poiEntry(poi.route);
+    var html = '<span class="poi-label">地図に出す：</span>' + Object.keys(POI_KINDS).map(function (k) {
+      return '<button type="button" class="poi-toggle" data-poi="' + k + '" aria-pressed="' + poi.show[k] + '">' + poiIconHtml(k) + POI_KINDS[k] + '</button>';
+    }).join('');
+    var st = '';
+    if (!e || e.status === 'loading' || e.status === 'aborted') st = '<p class="poi-status">ルート沿いのコンビニ・トイレを探しています…</p>';
+    else if (e.status === 'err') st = '<p class="poi-status err">' + esc(e.msg) + '（ルートはそのまま使えます）</p>';
+    else {
+      var nc = 0, nt = 0;
+      e.list.forEach(function (x) { if (x.kind === 'convenience') nc++; else nt++; });
+      st = '<p class="poi-status">' + (nc || nt ? 'ルート沿い（150m以内）に コンビニ' + nc + '件・トイレ' + nt + '件' : 'ルート沿い（150m以内）にコンビニ・トイレは見つかりませんでした') + '</p>';
+    }
+    return html + st;
+  }
+  function renderPoiBars() {
+    var on = poiFeature() && !!poi.route;
+    var html = on ? poiBarHtml() : '';
+    ['#poiBarResults', '#poiBarWalk'].forEach(function (id) {
+      var el = $(id); if (!el) return;
+      el.hidden = !on;
+      el.innerHTML = html;
+    });
+  }
+  ['#poiBarResults', '#poiBarWalk'].forEach(function (id) {
+    $(id).addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-poi]'); if (!b) return;
+      poi.show[b.dataset.poi] = !poi.show[b.dataset.poi];
+      drawPoi(); renderPoiBars();
+      if (state.walk) updateWalkPoi(state.walk.lastState);
+    });
+  });
+  function aheadText(m) {
+    if (m < 30) return 'すぐ先';
+    return '約' + fmtDist(m >= 1000 ? Math.round(m / 100) * 100 : Math.round(m / 10) * 10) + '先';
+  }
+  // 歩いている間：「この先のコンビニ：約600m先（セブン-イレブン）」
+  function updateWalkPoi(s) {
+    var box = $('#walkPoi'), w = state.walk;
+    var e = w && poi.route === w.route && poiEntry(w.route);
+    if (!e || e.status !== 'ok') { box.hidden = true; box.innerHTML = ''; return; }
+    var prog = s && isFinite(s.progressMeters) ? s.progressMeters : 0;
+    var html = '';
+    Object.keys(POI_KINDS).forEach(function (k) {
+      if (!poi.show[k]) return;
+      var next = null;
+      for (var i = 0; i < e.list.length; i++) {
+        var x = e.list[i];
+        if (x.kind === k && (x.atMeters || 0) - prog > -20) { next = x; break; }
+      }
+      var label = 'この先の' + POI_KINDS[k] + '：';
+      if (next) {
+        var nm = next.brandJa || next.nameJa;
+        html += '<li>' + poiIconHtml(k) + '<span>' + label + aheadText(Math.max(0, (next.atMeters || 0) - prog)) + (nm && nm !== POI_KINDS[k] ? '（' + esc(nm) + '）' : '') + '</span></li>';
+      } else {
+        html += '<li>' + poiIconHtml(k) + '<span>' + label + 'ルート沿いにはもうありません</span></li>';
+      }
+    });
+    box.innerHTML = html;
+    box.hidden = !html;
+  }
+
+  /* ====================== 4. 歩く ====================== */
+  var wakeLock = null;
+  function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      navigator.wakeLock.request('screen').then(function (wl) {
+        wakeLock = wl;
+        $('#keepOnText').textContent = '歩いている間は、画面が自動で消えないようにしています。電源ボタンで画面を消すと、歩いた道を記録できなくなるので注意してください。';
+        wl.addEventListener && wl.addEventListener('release', function () { wakeLock = null; });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} }
+    wakeLock = null;
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && state.walk && !state.walk.finished && !wakeLock) requestWakeLock();
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (state.walk && !state.walk.finished) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // opt.courseId：いつものコースから出発 ／ opt.resumeFrom：前回の途中から
+  function startWalk(opt) {
+    opt = opt || {};
+    var route = state.routes[state.selected];
+    if (!route) return;
+    if (!window.WalkTracker || typeof window.WalkTracker.create !== 'function') {
+      openModal({ title: '歩く準備ができませんでした', bodyHtml: '<p>歩いた道を測る部分を読み込めていません。ページを読み込み直してください。</p>', actions: [{ label: '閉じる', kind: 'btn-primary' }] });
+      return;
+    }
+    var q = state.lastQuery;
+    var goal = q.goal ? { lat: q.goal.lat, lng: q.goal.lng } : { lat: q.start.lat, lng: q.start.lng };
+    var goalType = q.goal ? 'home' : 'start';
+    var snap = opt.resumeFrom || null;
+    var w = {
+      route: route, color: colorOf(state.selected), letter: letterOf(state.selected), goal: goal, goalType: goalType,
+      cum: cumulative(route.coords), finished: false, tracker: null, view: {}, lastState: null,
+      start: { lat: q.start.lat, lng: q.start.lng }, courseId: opt.courseId || q.courseId || null, resumed: !!snap,
+      voice: {}, voiceOff: false, shortcut: null,
+      offSeen: snap && snap.screenOff && snap.screenOff.lastGapEndedAt || null
+    };
+    state.walk = w;
+    walkBanner = { offRoute: null, weak: false, error: null, waiting: true };
+    var opts = {
+      route: route, goal: goal, strideCm: settings.strideCm, goalType: goalType,
+      onUpdate: function (s) { if (state.walk === w && !w.finished) onWalkUpdate(s); },
+      onGoal: function (s) { if (state.walk === w && !w.finished) { if (s) onWalkUpdate(s); finishWalk(true); } },
+      onError: function (msg) { if (state.walk === w && !w.finished) { walkBanner.error = msg || '今いる場所を調べられません。'; renderBanners(); } }
+    };
+    if (snap) opts.resumeFrom = snap;
+    if (DEV.simulate && typeof window.WalkTracker.simulateGeolocation === 'function') {
+      var simFrom = snap && snap.usedShortcut && snap.route ? snap.route.coords : route.coords;
+      opts.geolocation = w.devGeo = devGeolocation(simFrom);
+    }
+    try {
+      w.tracker = window.WalkTracker.create(opts);
+    } catch (e) {
+      state.walk = null;
+      openModal({ title: '歩く準備ができませんでした', bodyHtml: '<p>' + esc(e && e.messageJa || 'もう一度ためしてください。') + '</p>', actions: [{ label: '閉じる', kind: 'btn-primary' }] });
+      return;
+    }
+    stopGpsWatch();
+    lastFit = null;
+    drawWalkLayer(w);
+    poiShowFor(route);
+    updateWalkPoi(null);
+    renderWalkHead(w);
+    resetWalkStats(snap);
+    renderWalkTools();
+    hideScreenOff();
+    $('#wPace').hidden = true;
+    state.following = true;
+    setCollapsed(false);
+    setSearchView('walking');
+    $('#screens').scrollTop = 0;
+    keepWalkToolsVisible();
+    if (map) {
+      // 地図がズームの動きの途中なら、終わってから歩く場所に寄せる（途中で動かすと上書きされるため）
+      var goWalkView = function () { map.setView(followCenter([q.start.lat, q.start.lng], 16), 16, { animate: false }); };
+      if (map._animatingZoom) map.once('zoomend', goWalkView); else goWalkView();
+    }
+    requestWakeLock();
+    try { w.tracker.start(); } catch (e) {
+      walkBanner.error = (e && e.messageJa) || '今いる場所を調べられませんでした。';
+      renderBanners();
+    }
+  }
+  // 開発用（?simulate=1）：ルートの上を歩いているふりをする。近道に切りかえたら、近道の上を歩くように乗りかえる
+  // 速さは 3m/秒（これより速いと walk.js が測位を捨てる）。0.25秒ごとに「1秒ぶん」進めて早送りにする
+  function devGeolocation(coords) {
+    var SIM = { speedMps: 3, intervalMs: 250, virtualIntervalMs: 1000, noiseM: 4 };
+    var cur = null, id = null, ok = null, ng = null, wo = null, lastTs = 0, offset = 0, reBase = false;
+    function relay(p) {
+      if (reBase) { offset = lastTs + SIM.virtualIntervalMs - p.timestamp; reBase = false; }
+      lastTs = p.timestamp + offset;
+      ok({ coords: p.coords, timestamp: lastTs });
+    }
+    return {
+      simulatedSpeedMps: SIM.speedMps,
+      watchPosition: function (a, b, o) { ok = a; ng = b; wo = o; cur = window.WalkTracker.simulateGeolocation(coords, SIM); id = cur.watchPosition(relay, ng, wo); return 1; },
+      clearWatch: function () { if (cur && id != null) cur.clearWatch(id); id = null; },
+      switchTo: function (c) {
+        if (!ok || id == null) return;
+        cur.clearWatch(id); reBase = true;
+        cur = window.WalkTracker.simulateGeolocation(c, SIM); id = cur.watchPosition(relay, ng, wo);
+      }
+    };
+  }
+  function renderWalkHead(w) {
+    var el = $('#walkHead');
+    el.style.setProperty('--c', w.color);
+    el.innerHTML = '<span class="badge">' + w.letter + '</span><span class="wh"><span class="t">' + esc(w.route.labelJa || ('ルート' + w.letter)) +
+      (w.shortcut ? '<span class="shortcut-on">近道で帰っています</span>' : '') + '</span>' +
+      '<span class="s">予定 ' + fmtDist(w.route.distanceMeters) + '・' + (w.goalType === 'home' ? '家に戻る' : '出発した場所に戻る') + (w.resumed ? '・前回の続き' : '') + '</span>' +
+      (DEV.simulate ? ' <span class="sim-badge">自動で再現中</span>' : '') + '</span>';
+  }
+  function resetWalkStats(snap) {
+    var wd = distParts(snap && snap.walkedMeters || 0, 2);
+    $('#wDist').textContent = wd.v; $('#wDistU').textContent = wd.u;
+    $('#wSteps').textContent = fmtNum(snap && snap.steps || 0);
+    var r = distParts(state.walk.route.distanceMeters, 1);
+    $('#wRemain').textContent = r.v; $('#wRemainU').textContent = r.u;
+    $('#wTime').textContent = fmtClock(snap ? snapElapsed(snap) : 0);
+  }
+
+  /* ---- 歩いている間の小さな切りかえ（音声・近道） ---- */
+  var SPEAKER_SVG = function (on) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/>' +
+      (on ? '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M17 9l5 6M22 9l-5 6"/>') + '</svg>';
+  };
+  function shortcutFeature(w) {
+    return !!(window.RouteEngine && typeof window.RouteEngine.routeBetween === 'function' && w && w.tracker && typeof w.tracker.replaceRoute === 'function');
+  }
+  function renderWalkTools() {
+    var w = state.walk, vb = $('#btnVoice'), sb = $('#btnShortcut');
+    vb.hidden = !voiceOk();
+    vb.setAttribute('aria-pressed', String(!!settings.voice));
+    vb.innerHTML = SPEAKER_SVG(settings.voice) + '<span class="nw">音声案内</span> <span class="nw">' + (settings.voice ? 'オン' : 'オフ') + '</span>';
+    sb.hidden = !shortcutFeature(w);
+    if (!sb.hidden) sb.lastChild.textContent = w.shortcut ? '近道を探しなおす' : '近道で帰る';
+    $('#walkTools').hidden = vb.hidden && sb.hidden;
+    var leg = $('#walkLegend .lg-skip');
+    if (leg) leg.hidden = !settings.showSkipped;
+  }
+
+  /* ---- 音声案内（speechSynthesis。使えないブラウザではボタンごと出さない） ---- */
+  window.__sanpoSpoken = [];
+  function voiceOk() { return 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function'; }
+  function jaVoice() {
+    try {
+      var vs = window.speechSynthesis.getVoices() || [];
+      return vs.filter(function (v) { return /^ja/i.test(v.lang); })[0] || null;
+    } catch (e) { return null; }
+  }
+  function speak(text, force) {
+    if (!voiceOk() || (!settings.voice && !force)) return;
+    window.__sanpoSpoken.push(text);
+    if (window.__sanpoSpoken.length > 30) window.__sanpoSpoken.shift();
+    try {
+      window.speechSynthesis.cancel(); // 古い案内が残っていたら消してから話す
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ja-JP'; u.rate = 1; u.pitch = 1;
+      var v = jaVoice(); if (v) u.voice = v;
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function setVoice(on) {
+    settings.voice = !!on; saveSettings();
+    if (on) speak('音声案内をはじめます', true); // ボタンを押したときに話すと、iPhone でも声が出せるようになる
+    else { try { if (voiceOk()) window.speechSynthesis.cancel(); } catch (e) {} }
+    renderWalkTools();
+    if (state.tab === 'settings') renderSettings();
+  }
+  var VOICE_DIR = { left: '左', right: '右', 'slight-left': 'ななめ左', 'slight-right': 'ななめ右', 'sharp-left': '大きく左', 'sharp-right': '大きく右' };
+  function turnPhrase(dir, near) {
+    if (dir === 'uturn') return near ? 'まもなく引き返します' : 'およそ100メートル先で、引き返します';
+    var word = VOICE_DIR[dir] || '曲がり角';
+    return near ? 'まもなく' + word + 'です' : 'およそ100メートル先、' + word + 'です';
+  }
+  function voiceGuide(w, s) {
+    if (!settings.voice || !voiceOk()) return;
+    var t = s.nextTurn, vs = w.voice;
+    if (t && isFinite(t.distanceMeters)) {
+      var key = t.lat + ',' + t.lng + ',' + t.dir, d = t.distanceMeters;
+      if (vs.key !== key) { vs.key = key; vs.max = d; vs.s100 = false; vs.s30 = false; }
+      vs.max = Math.max(vs.max, d);
+      if (!vs.s30 && d <= 30) { vs.s30 = true; vs.s100 = true; speak(turnPhrase(t.dir, true)); }
+      else if (!vs.s100 && d <= 105 && d > 30 && vs.max > 150) { vs.s100 = true; speak(turnPhrase(t.dir, false)); }
+    }
+    if (s.isOffRoute) { if (!w.voiceOff) { w.voiceOff = true; speak('ルートから離れています。地図で道を確かめてください'); } }
+    else w.voiceOff = false;
+  }
+
+  /* ---- ペース ---- */
+  function fmtPace(sec) {
+    if (!isFinite(sec) || sec <= 0 || sec > 3600) return null;
+    var t = Math.round(sec), m = Math.floor(t / 60), ss = t % 60;
+    return m + '分' + (ss ? ss + '秒' : '');
+  }
+  function renderPace(s) {
+    var el = $('#wPace');
+    var p = isFinite(s.currentPaceSecPerKm) && s.currentPaceSecPerKm > 0 ? s.currentPaceSecPerKm : s.avgPaceSecPerKm;
+    var txt = fmtPace(p);
+    var wasHidden = el.hidden;
+    el.hidden = !txt;
+    if (txt) el.innerHTML = 'ペース 1kmあたり <b>' + txt + '</b>';
+    if (wasHidden && txt) keepWalkToolsVisible(); // ペースの行が増えてボタンが下にずれたとき
+  }
+  // 画面が低い・文字が大きいときに、「音声案内」「近道で帰る」が下の「終了する」の帯にかくれないよう、
+  // 歩き始めに少しだけ上に送る（自分で動かしたあとは動かさない）
+  function keepWalkToolsVisible() {
+    requestAnimationFrame(function () {
+      var w = state.walk, tools = $('#walkTools'), foot = $('#scr-walk .sticky-foot'), sc = $('#screens');
+      if (!w || w.toolsScrolled || !tools || tools.hidden || !foot || currentScreenId() !== 'scr-walk') return;
+      if (sc.scrollTop > (w.toolsAutoTop || 0) + 2) { w.toolsScrolled = true; return; }
+      var over = tools.getBoundingClientRect().bottom + 8 - foot.getBoundingClientRect().top;
+      if (over > 0) { sc.scrollTop += over; w.toolsAutoTop = sc.scrollTop; }
+    });
+  }
+  function splitsHtml(splits, avg) {
+    var list = Array.isArray(splits) ? splits.filter(function (x) { return x && isFinite(x.durationMs); }) : [];
+    var a = fmtPace(avg);
+    if (!list.length && !a) return '';
+    return '<div class="splits">' + (a ? '<p class="sp-avg"><span class="nw">平均ペース</span> <span class="nw">1kmあたり</span> <span class="nw">' + a + '</span></p>' : '') +
+      (list.length ? '<ol>' + list.map(function (x, i) {
+        return '<li><span>' + (x.km || i + 1) + 'km目</span>' + (fmtPace(x.durationMs / 1000) || '-') + '</li>';
+      }).join('') + '</ol>' : '') + '</div>';
+  }
+
+  /* ---- 画面が消えていた知らせ ---- */
+  var offTimer = null;
+  function gapText(ms) {
+    if (ms < 60000) return '約' + Math.max(10, Math.round(ms / 10000) * 10) + '秒間';
+    return '約' + fmtMinutes(ms / 60000) + '間';
+  }
+  function checkScreenOff(w, s) {
+    var so = s.screenOff;
+    if (!so || !so.lastGapEndedAt || so.lastGapEndedAt === w.offSeen) return;
+    w.offSeen = so.lastGapEndedAt;
+    if (!(so.lastGapMs >= 15000)) return;
+    $('#screenOffText').textContent = '画面が消えていた' + gapText(so.lastGapMs) + 'は、位置を測れていませんでした';
+    $('#screenOffNote').hidden = false;
+    clearTimeout(offTimer);
+    offTimer = setTimeout(hideScreenOff, 10000);
+  }
+  function hideScreenOff() { clearTimeout(offTimer); $('#screenOffNote').hidden = true; }
+
+  /* ---- 近道で帰る ---- */
+  function askShortcut() {
+    var w = state.walk;
+    if (!w || w.finished) return;
+    var s = w.lastState;
+    if (!s || !s.position) { toast('今いる場所がまだわかりません。少し待ってからためしてください'); return; }
+    openModal({
+      title: 'ここからゴールまでの近道に切りかえますか？',
+      bodyHtml: '<p>今いる場所から' + (w.goalType === 'home' ? '家' : '出発した場所') + 'まで、いちばん近い道を探します。ここまで歩いた記録はそのまま残ります。</p>',
+      actions: [
+        { label: '近道に切りかえる', kind: 'btn-primary', onClick: runShortcut },
+        { label: 'やめる', kind: '' }
+      ]
+    });
+  }
+  function runShortcut() {
+    var w = state.walk;
+    if (!w || w.finished || !w.lastState || !w.lastState.position) return;
+    var pos = w.lastState.position, ctrl = new AbortController();
+    w.scAbort = ctrl;
+    openModal({
+      topHtml: '<div class="spinner mini-spin" aria-hidden="true"></div>',
+      title: '近道を探しています…',
+      bodyHtml: '<p>少し時間がかかることがあります。</p>',
+      actions: [{ label: 'やめる', kind: '', onClick: function () { ctrl.abort(); } }]
+    });
+    var p;
+    try { p = Promise.resolve(window.RouteEngine.routeBetween({ lat: pos.lat, lng: pos.lng }, { lat: w.goal.lat, lng: w.goal.lng }, { signal: ctrl.signal })); } catch (e) { p = Promise.reject(e); }
+    p.then(function (route) {
+      if (ctrl.signal.aborted || state.walk !== w || w.finished) return;
+      if (!route || !route.coords || route.coords.length < 2) { var er = new Error('none'); er.messageJa = '近道が見つかりませんでした。今のルートのまま歩いてください。'; throw er; }
+      w.tracker.replaceRoute(route, { lat: w.goal.lat, lng: w.goal.lng });
+      closeModal();
+      applyShortcut(w, route);
+      toast('近道に切りかえました');
+      speak('近道に切りかえました');
+    }).catch(function (err) {
+      if (ctrl.signal.aborted || (err && err.name === 'AbortError') || state.walk !== w || w.finished) return;
+      openModal({
+        title: '近道を出せませんでした',
+        bodyHtml: '<p>' + esc(err && err.messageJa || 'インターネットにつながっているか確かめて、もう一度ためしてください。') + '</p><p>今のルートのまま歩けます。</p>',
+        actions: [{ label: '閉じる', kind: 'btn-primary' }]
+      });
+    });
+  }
+  function applyShortcut(w, route) {
+    w.shortcut = route; w.scCum = cumulative(route.coords);
+    if (w.devGeo && w.devGeo.switchTo && !w.resumedShortcut) w.devGeo.switchTo(route.coords);
+    w.voice = {};
+    renderWalkHead(w); renderWalkTools();
+    if (!map) return;
+    var v = w.view, ll = route.coords;
+    // 元のルートはうすくして、近道を青で上に重ねる
+    v.rest.setStyle({ opacity: 0.3 }); v.passed.setStyle({ opacity: 0.35 }); v.casing.setStyle({ opacity: 0.45 });
+    v.arrows.clearLayers();
+    if (v.sc) layers.walk.removeLayer(v.sc);
+    v.sc = L.layerGroup().addTo(layers.walk);
+    L.polyline(ll, { color: '#fff', weight: 11, opacity: 0.95, interactive: false, lineJoin: 'round' }).addTo(v.sc);
+    v.scPassed = L.polyline([], { color: WALK_COLORS.behind, weight: 6, opacity: 0.9, interactive: false, lineJoin: 'round' }).addTo(v.sc);
+    v.scRest = L.polyline(ll, { color: WALK_COLORS.todo, weight: 7, opacity: 1, interactive: false, lineJoin: 'round' }).addTo(v.sc);
+    addArrows(v.sc, ll, WALK_COLORS.todo);
+  }
+
+  // 歩いている間の線の色。ルートA〜Cの色（青・朱・緑）だと「歩いた＝緑」「通っていない＝赤」と見分けにくいので、
+  // 歩いている間だけは「これから歩く道」をいつも青にする
+  var WALK_COLORS = { todo: '#0072B2', walked: '#129A4A', skipped: '#D7261E', behind: '#9AA5A0' };
+  // ルートの from〜to メートルの部分だけを切り出す
+  function sliceRange(coords, cum, from, to) {
+    var total = cum[cum.length - 1];
+    from = clamp(from, 0, total); to = clamp(to, 0, total);
+    if (!(to - from > 0.5)) return [];
+    var a = pointAt(coords, cum, from), b = pointAt(coords, cum, to);
+    var out = [a.p];
+    for (var i = a.i + 1; i <= b.i; i++) out.push(coords[i]);
+    out.push(b.p);
+    return out;
+  }
+  function drawWalkLayer(w) {
+    if (!map) return;
+    layers.walk.clearLayers();
+    var ll = w.route.coords, v = w.view;
+    // 実際のGPSの道すじはいちばん下に描く（ルートの上では色分けの線に隠れ、ルートを外れた所だけ見える）
+    v.track = L.polyline([], { color: '#1C2925', weight: 3, opacity: 0.6, dashArray: '2 6', interactive: false }).addTo(layers.walk);
+    v.casing = L.polyline(ll, { color: '#fff', weight: 11, opacity: 0.95, interactive: false, lineJoin: 'round' }).addTo(layers.walk);
+    v.passed = L.polyline([], { color: WALK_COLORS.behind, weight: 6, opacity: 0.9, interactive: false, lineJoin: 'round' }).addTo(layers.walk);
+    v.rest = L.polyline(ll, { color: WALK_COLORS.todo, weight: 7, opacity: 1, interactive: false, lineJoin: 'round' }).addTo(layers.walk);
+    // 「通っていない所を赤い点線で表示する」が切ってあるときは、これから歩く道と同じ見た目にする
+    v.skipped = L.polyline([], settings.showSkipped
+      ? { color: WALK_COLORS.skipped, weight: 6, opacity: 1, dashArray: '7 9', lineCap: 'butt', interactive: false }
+      : { color: WALK_COLORS.todo, weight: 7, opacity: 1, interactive: false, lineJoin: 'round' }).addTo(layers.walk);
+    v.visited = L.polyline([], { color: WALK_COLORS.walked, weight: 8, opacity: 1, interactive: false, lineJoin: 'round' }).addTo(layers.walk);
+    v.arrows = L.layerGroup().addTo(layers.walk);
+    addArrows(v.arrows, ll, WALK_COLORS.todo);
+
+    var q = state.lastQuery;
+    if (w.goalType === 'home') {
+      pinMarker([q.start.lat, q.start.lng], 'スタート', 'start').addTo(layers.walk);
+      pinMarker([w.goal.lat, w.goal.lng], '家（ゴール）', 'home').addTo(layers.walk);
+    } else {
+      pinMarker([q.start.lat, q.start.lng], 'スタート・ゴール', 'start').addTo(layers.walk);
+    }
+    v.acc = null; v.me = null;
+  }
+  /* ---- 曲がり角の案内 ---- */
+  var DIR_SHORT = { left: '左', right: '右', 'slight-left': 'ななめ左', 'slight-right': 'ななめ右', 'sharp-left': '大きく左', 'sharp-right': '大きく右', uturn: '引き返す' };
+  var DIR_TEXT = { left: '左に曲がる', right: '右に曲がる', 'slight-left': 'ななめ左へ', 'slight-right': 'ななめ右へ', 'sharp-left': '大きく左に曲がる', 'sharp-right': '大きく右に曲がる', uturn: '引き返す' };
+  function turnSvg(dir) {
+    var paths = {
+      straight: '<path d="M12 21V4"/><path d="M6 10l6-6 6 6"/>',
+      right: '<path d="M7 21v-8a4 4 0 0 1 4-4h9"/><path d="M15 4l5 5-5 5"/>',
+      'slight-right': '<path d="M8 21v-6.5L17.5 5"/><path d="M10.5 4.5h7.5V12"/>',
+      'sharp-right': '<path d="M7 21V6l11 11"/><path d="M18 10v7h-7"/>',
+      uturn: '<path d="M7 21V10a5 5 0 0 1 10 0v7"/><path d="M13 13l4 4 4-4"/>',
+      goal: '<path d="M6 21V4"/><path d="M6 4h12l-3 4 3 4H6" fill="currentColor"/>'
+    };
+    var base = String(dir || 'straight').replace('left', 'right');
+    var flip = /left/.test(dir || '');
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      (flip ? '<g transform="translate(24 0) scale(-1 1)">' : '<g>') + (paths[base] || paths.straight) + '</g></svg>';
+  }
+  function turnDistText(d) {
+    if (d <= 15) return 'まもなく';
+    var r = d >= 100 ? Math.round(d / 10) * 10 : Math.round(d / 5) * 5;
+    return fmtDist(r) + '先';
+  }
+  function turnGuide(s) {
+    var t = s.nextTurn;
+    if (t && isFinite(t.distanceMeters)) {
+      var g = { dir: t.dir, dist: turnDistText(t.distanceMeters), act: t.textJa || DIR_TEXT[t.dir] || '曲がる', soon: t.distanceMeters <= 30, after: null };
+      var a = s.turnAfter;
+      if (a && isFinite(a.distanceMeters) && a.distanceMeters - t.distanceMeters <= 150) g.after = DIR_SHORT[a.dir] || a.textJa || '';
+      return g;
+    }
+    if (isFinite(s.remainingMeters) && s.remainingMeters < 100) return { dir: 'goal', dist: '', act: 'まもなくゴール', calm: true };
+    return { dir: 'straight', dist: '', act: '道なりに進む', calm: true };
+  }
+  // 曲がり角が30mより近づいたら、1回だけ短くふるえる（ふるえない機種では何もしない）
+  function maybeVibrate(w, s) {
+    var t = s.nextTurn;
+    if (!t || !isFinite(t.distanceMeters) || t.distanceMeters > 30) return;
+    var key = t.lat + ',' + t.lng;
+    if (w.vibrated === key) return;
+    w.vibrated = key;
+    try { if (navigator.vibrate) navigator.vibrate(200); } catch (e) {}
+  }
+  function onWalkUpdate(s) {
+    var w = state.walk;
+    if (!w || !s) return;
+    w.lastState = s;
+    var d = distParts(s.walkedMeters, 2);
+    $('#wDist').textContent = d.v; $('#wDistU').textContent = d.u;
+    $('#wSteps').textContent = fmtNum(s.steps || 0);
+    var r = distParts(isFinite(s.remainingMeters) ? s.remainingMeters : w.route.distanceMeters, s.remainingMeters >= 1000 ? 1 : 0);
+    $('#wRemain').textContent = r.v; $('#wRemainU').textContent = r.u;
+    $('#wTime').textContent = fmtClock(s.elapsedMs);
+
+    var prev = JSON.stringify(walkBanner);
+    walkBanner.waiting = !s.position;
+    if (s.position) walkBanner.error = null;
+    walkBanner.offRoute = s.isOffRoute ? Math.max(10, Math.round((s.offRouteMeters || 0) / 10) * 10) : null;
+    walkBanner.weak = !!s.gpsWeak;
+    walkBanner.turn = s.position ? turnGuide(s) : null;
+    if (JSON.stringify(walkBanner) !== prev) renderBanners();
+    maybeVibrate(w, s);
+    voiceGuide(w, s);
+    updateWalkPoi(s);
+    renderPace(s);
+    checkScreenOff(w, s);
+
+    if (!map) return;
+    var v = w.view;
+    if (w.shortcut && v.scRest && isFinite(s.remainingMeters)) {
+      // 近道：残りの距離から、近道の上でどこまで進んだかを出す
+      var scTotal = w.scCum[w.scCum.length - 1], sp = splitAt(w.shortcut.coords, w.scCum, clamp(scTotal - s.remainingMeters, 0, scTotal));
+      v.scPassed.setLatLngs(sp[0]); v.scRest.setLatLngs(sp[1]);
+    }
+    if (isFinite(s.progressMeters)) {
+      if (!w.shortcut) {
+        var parts = splitAt(w.route.coords, w.cum, s.progressMeters);
+        v.passed.setLatLngs(parts[0]);
+        v.rest.setLatLngs(parts[1]);
+      }
+      var cov = s.coverage;
+      if (cov && Array.isArray(cov.visitedRanges)) {
+        // 歩いた所は緑、進み具合より手前で歩かずに飛ばした所は赤い点線
+        var cut = function (rs) { return (rs || []).map(function (r) { return sliceRange(w.route.coords, w.cum, r[0], r[1]); }).filter(function (x) { return x.length > 1; }); };
+        v.visited.setLatLngs(cut(cov.visitedRanges));
+        var sk = cov.skippedRanges || [];
+        if (w.shortcut) {
+          // 近道に切りかえたあとの「元のルートの残り」は飛ばした所ではないので、赤い点線にしない（最後に歩いた所より先は出さない）
+          var lastVis = cov.visitedRanges.reduce(function (m, r) { return Math.max(m, r[1]); }, 0);
+          sk = sk.filter(function (r) { return r[1] <= lastVis + 1; });
+        }
+        v.skipped.setLatLngs(cut(sk));
+      } else if (!w.shortcut) {
+        v.visited.setLatLngs(splitAt(w.route.coords, w.cum, s.progressMeters)[0]); // 色分けの情報が無いときは、進んだ所までを緑にする
+      }
+    }
+    if (s.track && s.track.length) v.track.setLatLngs(s.track);
+    if (s.position) {
+      var ll = [s.position.lat, s.position.lng];
+      if (!v.me) {
+        v.acc = L.circle(ll, { radius: s.position.accuracy || 10, color: '#1A73E8', weight: 1, fillColor: '#1A73E8', fillOpacity: 0.15, interactive: false }).addTo(layers.walk);
+        v.me = L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 4000, icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<div class="me-dot"></div>' }) }).addTo(layers.walk);
+      } else {
+        v.me.setLatLng(ll);
+        v.acc.setLatLng(ll); v.acc.setRadius(s.position.accuracy || 10);
+      }
+      if (state.following) map.panTo(followCenter(ll), { animate: true, duration: 0.5 });
+    }
+  }
+  // 今いる場所が、上の案内とパネルに隠れない「見えている地図」のまん中に来るよう、地図の中心を少しずらす
+  function followCenter(ll, zoom) {
+    if (!map) return ll;
+    var z = zoom == null ? map.getZoom() : zoom;
+    var wrap = $('#mapWrap').getBoundingClientRect(), top = 0, bottom = wrap.height;
+    var mt = $('#mapTop');
+    if (mt.firstChild) top = Math.max(0, mt.getBoundingClientRect().bottom - wrap.top);
+    if (window.innerWidth < 900) bottom -= 18; // パネルが地図に少し重なっている分
+    if (bottom - top < 80) return ll;
+    var dy = (top + bottom) / 2 - wrap.height / 2;
+    return map.unproject(map.project(ll, z).subtract([0, dy]), z);
+  }
+  function recenter() {
+    state.following = true;
+    $('#btnRecenter').hidden = true;
+    var s = state.walk && state.walk.lastState;
+    if (s && s.position && map) { var z = Math.max(map.getZoom(), 16); map.setView(followCenter([s.position.lat, s.position.lng], z), z); }
+  }
+  function confirmEnd() {
+    openModal({
+      title: '歩くのを終わりにしますか？',
+      bodyHtml: '<p>ここまでの記録を保存します。</p>',
+      actions: [
+        { label: '終わりにする', kind: 'btn-danger-fill', onClick: function () { finishWalk(false); } },
+        { label: 'まだ歩く', kind: '' }
+      ]
+    });
+  }
+  function finishWalk(reachedGoal) {
+    var w = state.walk;
+    if (!w || w.finished) return;
+    w.finished = true;
+    var summary = null;
+    try { summary = w.tracker.stop(); } catch (e) { summary = null; }
+    if (w.scAbort) { try { w.scAbort.abort(); } catch (e) {} }
+    hideScreenOff();
+    if (reachedGoal) speak('ゴールです。おつかれさまでした');
+    releaseWakeLock();
+    poiCancel(); // 歩き終わったら、まだ終わっていないコンビニ・トイレの問い合わせはやめる
+    var s = w.lastState || {};
+    var walked = summary && isFinite(summary.walkedMeters) ? summary.walkedMeters : (s.walkedMeters || 0);
+    var steps = summary && isFinite(summary.steps) ? summary.steps : (s.steps || 0);
+    var dur = summary && isFinite(summary.durationMs) ? summary.durationMs : (s.elapsedMs || 0);
+    var reached = reachedGoal || !!(summary && summary.reachedGoal);
+    var note;
+    if (!summary) {
+      note = '<p class="msg msg-error">記録を作れなかったため、保存できませんでした。</p>';
+    } else if (walked < 30) {
+      note = '<p class="msg msg-info">歩いた距離が30mより短かったので、記録は残していません。</p>';
+    } else if (!window.WalkHistory || typeof window.WalkHistory.save !== 'function') {
+      note = '<p class="msg msg-error">記録を残す部分を読み込めていないため、保存できませんでした。</p>';
+    } else if (!w.saved) {
+      w.saved = true; // 保存は1回だけ
+      try { window.WalkHistory.save(summary); note = '<p class="msg msg-info">記録を保存しました。「記録」から見られます。</p>'; }
+      catch (e) { note = '<p class="msg msg-error">記録を保存できませんでした。スマホの空き容量が足りないかもしれません。</p>'; }
+    }
+    var d = distParts(walked, 2);
+    var cover = summary && typeof summary.coverageRatio === 'number' && isFinite(summary.coverageRatio) ? summary.coverageRatio : null;
+    var statsHtml = '<div class="stats">' +
+      '<div class="stat hero"><div class="k">歩いた距離</div><div><span class="v">' + d.v + '</span><span class="u">' + d.u + '</span></div></div>' +
+      '<div class="stat"><div class="k">歩数</div><div><span class="v">' + fmtNum(steps) + '</span><span class="u">歩</span></div></div>' +
+      '<div class="stat" style="grid-column:1/-1"><div class="k">かかった時間</div><div><span class="v">' + esc(fmtDurationMs(dur)) + '</span></div></div></div>' +
+      (cover != null ? coverLineHtml(cover, !!(summary && summary.usedShortcut) || !!w.shortcut) : (w.shortcut ? '<div class="cover-line cover-sc">途中から近道で帰りました</div>' : ''));
+    // いつものコースに保存するか聞く（コースから出発したときは聞かない）。近道を使っても、保存するのは最初の予定のルート
+    var askSave = coursesFeature() && !w.courseId && w.route && w.route.coords && w.route.coords.length > 1;
+    if (askSave) {
+      pendingCourse = { route: w.route, start: w.start, goal: w.goal, goalType: w.goalType };
+      statsHtml += '<div class="save-course" id="saveCourse"><p class="sc-q">今回のコースを「いつものコース」に保存しますか？</p>' +
+        '<label for="courseName">コースの名前</label><input class="text-in" id="courseName" maxlength="30" value="' + esc(defaultCourseName(w.route)) + '">' +
+        '<div class="row"><button type="button" class="btn btn-primary" data-sc="save">保存する</button><button type="button" class="btn" data-sc="skip">保存しない</button></div></div>';
+    } else pendingCourse = null;
+    var ls = w.lastState || {};
+    statsHtml += splitsHtml(summary && summary.splits || ls.splits, summary && isFinite(summary.avgPaceSecPerKm) ? summary.avgPaceSecPerKm : ls.avgPaceSecPerKm);
+    var offMs = summary && isFinite(summary.screenOffMs) ? summary.screenOffMs : (ls.screenOff && ls.screenOff.totalMs) || 0;
+    if (offMs >= 15000) statsHtml += '<p class="off-note">画面が消えていた時間（合計 ' + gapText(offMs).replace(/間$/, '') + '）は、位置を測れていませんでした。</p>';
+    var after = function (toHistory) {
+      state.walk = null;
+      walkBanner = { offRoute: null, weak: false, error: null, waiting: false };
+      if (map) layers.walk.clearLayers();
+      $('#walkPoi').hidden = true; $('#walkPoi').innerHTML = '';
+      state.searchView = 'results';
+      startGpsWatch();
+      if (toHistory) { switchTab('history'); }
+      else { render(); fitRoutes(); if (state.routes[state.selected]) poiShowFor(state.routes[state.selected]); } // 途中でやめた問い合わせは、ここでやり直す（poi.js の中に覚えてあれば通信しない）
+    };
+    var actions = [
+      { label: '記録を見る', kind: 'btn-primary', onClick: function () { after(true); } },
+      { label: '閉じる', kind: '', onClick: function () { after(false); } }
+    ];
+    if (reached) {
+      openModal({
+        className: 'celebrate',
+        topHtml: '<svg class="flag" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="40" fill="#E2F1EB"/><path d="M28 66V18" stroke="#1C2925" stroke-width="4" stroke-linecap="round"/><path d="M30 20h28l-6 9 6 9H30z" fill="#FFD23F" stroke="#1C2925" stroke-width="3" stroke-linejoin="round"/><path d="M20 66h28" stroke="#0B6B53" stroke-width="5" stroke-linecap="round"/></svg>',
+        title: 'ゴール！おつかれさまでした',
+        bodyHtml: statsHtml + note,
+        actions: actions
+      });
+    } else {
+      openModal({ title: 'おつかれさまでした', bodyHtml: statsHtml + note, actions: actions });
+    }
+  }
+
+  function coverPct(r) { return Math.round(clamp(r, 0, 1) * 100); }
+  function coverLineHtml(r, shortcut) {
+    var p = coverPct(r);
+    // 近道で帰ったときは「◯%」を大きく出さない（失敗のように見えるので）。予定のルートとの割合は小さく添えるだけ
+    if (shortcut) return '<div class="cover-line cover-sc">途中から近道で帰りました<small>予定のルートのうち ' + p + '% を歩きました</small></div>';
+    return '<div class="cover-line">歩いた道 <b>' + p + '%</b><div class="cover-bar" aria-hidden="true"><span style="width:' + p + '%"></span></div></div>';
+  }
+
+  /* ---- いつものコースに保存（ゴール・終了の窓の中） ---- */
+  var pendingCourse = null;
+  function defaultCourseName(route) {
+    var base = String(route.labelJa || 'コース').replace(/\s*[0-9.]+k?m$/, '');
+    return base + ' ' + fmtDist(route.distanceMeters || cumulative(route.coords).pop());
+  }
+  $('#modalCard').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sc]');
+    if (!b) return;
+    var box = $('#saveCourse');
+    if (!box) return;
+    if (b.dataset.sc === 'skip') { box.remove(); pendingCourse = null; return; }
+    var pc = pendingCourse;
+    if (!pc) return;
+    var name = ($('#courseName').value || '').trim() || defaultCourseName(pc.route);
+    var old = box.querySelector('.field-error'); if (old) old.remove();
+    try {
+      var saved = pc.route && pc.route.coords && pc.route.coords.length > 1
+        ? window.WalkCourses.save({ nameJa: name, route: pc.route, start: pc.start, goal: pc.goal, goalType: pc.goalType }) : null;
+      if (!saved) { box.insertAdjacentHTML('beforeend', '<p class="field-error">保存できませんでした。</p>'); return; }
+      pendingCourse = null;
+      box.className = 'save-course done';
+      box.innerHTML = '「' + esc(name) + '」を いつものコースに保存しました。次からは「ルートを探す」の画面から、ボタン1つで出発できます。';
+      renderCourses();
+    } catch (err) {
+      box.insertAdjacentHTML('beforeend', '<p class="field-error">保存できませんでした。スマホの空き容量が足りないかもしれません。</p>');
+    }
+  });
+
+  /* ====================== 5. 記録 ====================== */
+  function historyList() {
+    if (!window.WalkHistory) throw new Error('missing');
+    return { list: window.WalkHistory.list() || [], totals: window.WalkHistory.totals() || { count: 0, meters: 0, steps: 0 } };
+  }
+  function renderHistory() {
+    var body = $('#histBody'), data;
+    try { data = historyList(); } catch (e) {
+      body.innerHTML = '<div class="msg msg-error">記録を読み込めませんでした。ページを読み込み直してください。</div>';
+      if (map) layers.history.clearLayers();
+      return;
+    }
+    if (!data.list.length) {
+      state.historySel = null;
+      if (map) layers.history.clearLayers();
+      body.innerHTML = '<div class="empty"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M14 50c8-2 10-12 18-14s12-12 18-20" stroke-dasharray="3 8"/><circle cx="50" cy="14" r="5"/><circle cx="14" cy="50" r="5"/></svg>' +
+        '<p>まだ記録はありません。<br>ルートを探して、歩いてみましょう。</p>' +
+        '<button type="button" class="btn btn-primary" data-act="go-search">ルートを探す</button></div>';
+      return;
+    }
+    var t = data.totals;
+    var html = streakHtml() + periodHtml() + calendarHtml() + '<h3 class="hist-sub">これまでの記録</h3>';
+    html += '<div class="totals"><div class="k">これまで</div><div class="v"><b>' + fmtNum(t.count) + '</b>回・合計 <b>' + trimZero(((t.meters || 0) / 1000).toFixed(1)) + '</b>km・<b>' + fmtNum(t.steps || 0) + '</b>歩</div></div>';
+    html += '<ul class="hist-list">' + data.list.map(function (r) {
+      var sel = r.id === state.historySel;
+      var hasCover = typeof r.coverageRatio === 'number' && isFinite(r.coverageRatio);
+      return '<li class="hist-item' + (sel ? ' is-sel' : '') + '">' +
+        '<button type="button" class="hist-main" data-id="' + esc(r.id) + '" aria-expanded="' + sel + '">' +
+        '<span class="info"><span class="when">' + esc(fmtWhen(r.startedAt)) + '</span><br>' +
+        '<span class="what"><span class="nw"><b>' + fmtDist(r.walkedMeters || 0) + '</b>・</span><span class="nw">' + fmtNum(r.steps || 0) + '歩・</span><span class="nw">' + esc(fmtDurationMs(r.durationMs)) + (hasCover ? '・' : '') + '</span>' + (hasCover ? '<span class="nw">' + (r.usedShortcut ? '近道で帰った' : '歩いた道 ' + coverPct(r.coverageRatio) + '%') + '</span>' : '') + '</span></span>' +
+        '<span class="goal-mark ' + (r.reachedGoal ? 'yes' : 'no') + '">' + (r.reachedGoal ? 'ゴール<br>できた' : '途中で<br>終了') + '</span>' +
+        '</button>' +
+        (sel ? '<div class="hist-detail">' +
+          '<div class="legend"><span><i></i>実際に歩いた道</span><span><i class="plan"></i>予定のルート</span></div>' +
+          (hasCover ? coverLineHtml(r.coverageRatio, r.usedShortcut) : '') +
+          '<p class="hint" style="margin:0 0 10px">予定 ' + fmtDist(r.plannedMeters || 0) + '・' + (r.goalType === 'home' ? '家に戻る' : '出発した場所に戻る') + (r.usedShortcut && !hasCover ? '・途中から近道で帰った' : '') + '</p>' +
+          splitsHtml(r.splits, r.avgPaceSecPerKm) +
+          '<button type="button" class="btn btn-danger btn-small" style="width:100%" data-del="' + esc(r.id) + '">この記録を消す</button></div>' : '') +
+        '</li>';
+    }).join('') + '</ul>';
+    body.innerHTML = html;
+    var rec = state.historySel && data.list.filter(function (r) { return r.id === state.historySel; })[0];
+    drawHistoryOnMap(rec || null);
+  }
+  /* ---- 週・月のグラフ、カレンダー、目標、連続日数 ---- */
+  function hasFn(name) { return !!(window.WalkHistory && typeof window.WalkHistory[name] === 'function'); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function dkey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function fsScale() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs')) || 1; }
+  function kmText(m) { var k = (m || 0) / 1000; return trimZero(k >= 100 ? k.toFixed(0) : k.toFixed(1)); }
+  function safeDaily() { if (!hasFn('daily')) return null; try { return window.WalkHistory.daily() || {}; } catch (e) { return null; } }
+  function periodDays(period) {
+    // 今週（月曜はじまり）か今月の日付を、端末の時刻で1日ずつ並べる
+    var now = new Date(), days = [];
+    var first = period === 'week' ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)) : new Date(now.getFullYear(), now.getMonth(), 1);
+    var n = period === 'week' ? 7 : new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    for (var i = 0; i < n; i++) days.push(new Date(first.getFullYear(), first.getMonth(), first.getDate() + i));
+    return days;
+  }
+  function periodData(period) {
+    var pt = null;
+    if (hasFn('periodTotals')) { try { pt = window.WalkHistory.periodTotals(period, 0); } catch (e) { pt = null; } }
+    var daily = safeDaily();
+    if (!pt && !daily) return null;
+    var byDate = {};
+    if (pt && Array.isArray(pt.days)) pt.days.forEach(function (d) { if (d && d.date) byDate[String(d.date).slice(0, 10)] = d; });
+    var days = periodDays(period).map(function (d) {
+      var k = dkey(d), x = byDate[k] || (daily && daily[k]) || {};
+      return { date: d, key: k, meters: x.meters || 0, steps: x.steps || 0, count: x.count || 0 };
+    });
+    var sum = function (f) { return days.reduce(function (a, d) { return a + d[f]; }, 0); };
+    return { days: days, meters: pt && isFinite(pt.meters) ? pt.meters : sum('meters'), steps: pt && isFinite(pt.steps) ? pt.steps : sum('steps'), count: pt && isFinite(pt.count) ? pt.count : sum('count') };
+  }
+  var NICE = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100];
+  function barChartSvg(pd, period) {
+    var fs = fsScale();
+    var sw = $('#screens').clientWidth, padX = parseFloat(getComputedStyle($('#screens')).paddingLeft) || 16;
+    var W = Math.max(240, Math.round(sw - padX * 2 - 28)), H = Math.round(150 + 20 * fs);
+    var top = Math.round(22 * fs), bottom = Math.round(24 * fs), left = Math.round(40 * fs), right = 4;
+    var pw = W - left - right, ph = H - top - bottom;
+    var maxKm = Math.max.apply(null, pd.days.map(function (d) { return d.meters / 1000; }));
+    var yMax = NICE.filter(function (v) { return v >= maxKm; })[0] || Math.ceil(maxKm / 10) * 10;
+    var n = pd.days.length, slot = pw / n, bw = Math.max(3, Math.min(30, slot - 2)); // 棒と棒の間は2pxあける
+    var todayK = dkey(new Date()), sel = state.chartSel && pd.days.some(function (d) { return d.key === state.chartSel; }) ? state.chartSel : todayK;
+    var y = function (km) { return top + ph - km / yMax * ph; };
+    var out = '<svg class="bar-chart" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="' + (period === 'week' ? '今週' : '今月') + 'の1日ごとの歩いた距離">';
+    [yMax / 2, yMax].forEach(function (v) {
+      out += '<line class="grid" x1="' + left + '" x2="' + (W - right) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/>' +
+        '<text x="' + (left - 6) + '" y="' + (y(v) + 4 * fs).toFixed(1) + '" text-anchor="end">' + trimZero(v.toFixed(1)) + 'km</text>';
+    });
+    var selBar = null;
+    pd.days.forEach(function (d, i) {
+      var cx = left + slot * i + slot / 2, km = d.meters / 1000, x0 = cx - bw / 2;
+      if (km > 0) {
+        var h = Math.max(3, km / yMax * ph), yt = top + ph - h, r = Math.min(4, bw / 2, h);
+        out += '<path class="bar' + (d.key === sel ? ' sel' : '') + '" d="M' + x0.toFixed(1) + ',' + (top + ph) + 'V' + (yt + r).toFixed(1) + 'Q' + x0.toFixed(1) + ',' + yt.toFixed(1) + ' ' + (x0 + r).toFixed(1) + ',' + yt.toFixed(1) +
+          'H' + (x0 + bw - r).toFixed(1) + 'Q' + (x0 + bw).toFixed(1) + ',' + yt.toFixed(1) + ' ' + (x0 + bw).toFixed(1) + ',' + (yt + r).toFixed(1) + 'V' + (top + ph) + 'Z"/>';
+        if (d.key === sel) selBar = { cx: cx, yt: yt, km: km };
+      }
+      var lab = period === 'week' ? DOW[d.date.getDay()] : ([1, 5, 10, 15, 20, 25, 30].indexOf(d.date.getDate()) >= 0 ? String(d.date.getDate()) : '');
+      if (lab) out += '<text x="' + cx.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle"' + (d.key === todayK ? ' class="today-l"' : '') + '>' + lab + '</text>';
+      out += '<rect class="hit" data-day="' + d.key + '" x="' + (left + slot * i).toFixed(1) + '" y="0" width="' + slot.toFixed(1) + '" height="' + H + '"><title>' + (d.date.getMonth() + 1) + '月' + d.date.getDate() + '日 ' + kmText(d.meters) + 'km</title></rect>';
+    });
+    out += '<line class="base" x1="' + left + '" x2="' + (W - right) + '" y1="' + (top + ph) + '" y2="' + (top + ph) + '"/>';
+    if (selBar) out += '<text class="vlabel" x="' + clamp(selBar.cx, left + 14, W - 18).toFixed(1) + '" y="' + (selBar.yt - 6).toFixed(1) + '" text-anchor="middle">' + trimZero(selBar.km.toFixed(1)) + 'km</text>';
+    out += '</svg>';
+    var sd = pd.days.filter(function (d) { return d.key === sel; })[0];
+    var read = sd ? (sd.date.getMonth() + 1) + '月' + sd.date.getDate() + '日（' + DOW[sd.date.getDay()] + '）' + (sd.key === todayK ? '今日' : '') + '　' +
+      (sd.meters > 0 ? kmText(sd.meters) + 'km・' + fmtNum(sd.steps) + '歩' : '歩いていません') : '';
+    return out + '<p class="chart-read" id="chartRead">' + esc(read) + '</p>';
+  }
+  function goalHtml() {
+    var g = settings.goal;
+    if (!g) return '<p class="hint" style="margin-top:10px">歩く目標は「設定」で決められます。</p>';
+    var pd = periodData(g.period);
+    if (!pd) return '';
+    var name = g.period === 'week' ? '今週' : '今月', gk = kmText(g.meters), rest = g.meters - pd.meters, pct = clamp(pd.meters / g.meters, 0, 1) * 100;
+    return '<div class="goal-box"><p>' + (rest <= 0 ? name + 'の目標 ' + gk + 'km を<b>達成しました！</b>' : name + 'の目標 ' + gk + 'km まで あと <b>' + kmText(rest) + 'km</b>') + '</p>' +
+      '<div class="goal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(pct) + '"><span style="width:' + pct.toFixed(1) + '%"></span></div></div>';
+  }
+  function periodHtml() {
+    var period = state.histPeriod === 'month' ? 'month' : 'week', pd = periodData(period);
+    if (!pd) return '';
+    var name = period === 'week' ? '今週' : '今月';
+    return '<div class="period-card"><div class="seg" role="group" aria-label="グラフの期間">' +
+      '<button type="button" data-period="week" aria-pressed="' + (period === 'week') + '">今週</button><button type="button" data-period="month" aria-pressed="' + (period === 'month') + '">今月</button></div>' +
+      '<p class="period-sum">' + name + ' <b>' + kmText(pd.meters) + '</b>km・' + fmtNum(pd.steps) + '歩・' + fmtNum(pd.count) + '回</p>' +
+      barChartSvg(pd, period) + goalHtml() + '</div>';
+  }
+  function streakHtml() {
+    if (!hasFn('streak')) return '';
+    var st; try { st = window.WalkHistory.streak() || {}; } catch (e) { return ''; }
+    var cur = st.current || 0, best = Math.max(st.best || 0, cur);
+    if (!best) return '';
+    var ico = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-3-1-6 1-9z"/></svg>';
+    var txt = cur > 0
+      ? '<span><b>' + cur + '</b>日連続で歩いています' + (best > cur ? '<br>いちばん長い記録は ' + best + '日' : (cur > 1 ? '<br>これまででいちばん長い記録です' : '')) + '</span>'
+      : '<span>いちばん長い連続記録は <b>' + best + '</b>日<br>今日も歩いてみましょう</span>';
+    return '<div class="streak">' + ico + txt + '</div>';
+  }
+  function calendarHtml() {
+    var daily = safeDaily();
+    if (!daily) return '';
+    var off = state.calOffset || 0, now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth() + off, 1);
+    var nDays = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate(), lead = (m0.getDay() + 6) % 7, todayK = dkey(now), walkedN = 0;
+    var cells = ['月', '火', '水', '木', '金', '土', '日'].map(function (d, i) { return '<span class="dow' + (i === 5 ? ' sat' : i === 6 ? ' sun' : '') + '">' + d + '</span>'; }).join('');
+    for (var i = 0; i < lead; i++) cells += '<span></span>';
+    for (var d = 1; d <= nDays; d++) {
+      var dt = new Date(m0.getFullYear(), m0.getMonth(), d), k = dkey(dt), x = daily[k];
+      var walked = !!(x && ((x.meters || 0) > 0 || (x.count || 0) > 0)), dw = dt.getDay();
+      if (walked) walkedN++;
+      cells += '<span class="d' + (walked ? ' walked' : '') + (k === todayK ? ' today' : '') + (dt > now ? ' future' : '') + (dw === 0 ? ' sun' : dw === 6 ? ' sat' : '') + '"' +
+        (walked ? ' aria-label="' + d + '日 歩いた日 ' + kmText(x.meters) + 'km"' : '') + '>' + d + '</span>';
+    }
+    return '<div class="cal"><div class="cal-head"><button type="button" data-cal="-1" aria-label="前の月">◀</button><b>' + m0.getFullYear() + '年' + (m0.getMonth() + 1) + '月</b>' +
+      '<button type="button" data-cal="1" aria-label="次の月"' + (off >= 0 ? ' disabled' : '') + '>▶</button></div>' +
+      '<div class="cal-grid">' + cells + '</div><p class="cal-note">○ は歩いた日（この月は ' + walkedN + '日）</p></div>';
+  }
+  function drawHistoryOnMap(rec) {
+    if (!map) return;
+    layers.history.clearLayers();
+    if (!rec) return;
+    var b = L.latLngBounds([]);
+    var rc = rec.routeCoords || [], tc = rec.trackCoords || [];
+    if (rc.length > 1) {
+      L.polyline(rc, { color: '#6F7F78', weight: 4, opacity: 0.9, dashArray: '8 8', interactive: false }).addTo(layers.history);
+      b.extend(L.latLngBounds(rc));
+    }
+    if (tc.length > 1) {
+      L.polyline(tc, { color: '#fff', weight: 9, opacity: 0.9, interactive: false }).addTo(layers.history);
+      L.polyline(tc, { color: '#0B6B53', weight: 5, opacity: 1, interactive: false }).addTo(layers.history);
+      b.extend(L.latLngBounds(tc));
+    }
+    var first = tc[0] || rc[0], last = tc[tc.length - 1];
+    if (first) pinMarker(first, 'スタート', 'start').addTo(layers.history);
+    if (last && tc.length > 1 && haversine(first, last) > 40) pinMarker(last, '終わった場所', '').addTo(layers.history);
+    if (b.isValid()) fitTo(b);
+  }
+  $('#histBody').addEventListener('click', function (e) {
+    var go = e.target.closest('[data-act="go-search"]');
+    if (go) { switchTab('search'); return; }
+    var pb = e.target.closest('[data-period]');
+    if (pb) { state.histPeriod = pb.dataset.period; state.chartSel = null; renderHistory(); return; }
+    var hit = e.target.closest('[data-day]');
+    if (hit) { state.chartSel = hit.getAttribute('data-day'); renderHistory(); return; }
+    var cb = e.target.closest('[data-cal]');
+    if (cb) { state.calOffset = Math.min(0, (state.calOffset || 0) + (+cb.dataset.cal)); renderHistory(); return; }
+    var del = e.target.closest('[data-del]');
+    if (del) {
+      var id = del.dataset.del;
+      openModal({
+        title: 'この記録を消しますか？',
+        bodyHtml: '<p>消した記録は元に戻せません。</p>',
+        actions: [
+          { label: '消す', kind: 'btn-danger-fill', onClick: function () {
+            try { window.WalkHistory.remove(id); toast('記録を消しました'); } catch (err) { toast('記録を消せませんでした'); }
+            state.historySel = null; renderHistory();
+          } },
+          { label: 'やめる', kind: '' }
+        ]
+      });
+      return;
+    }
+    var item = e.target.closest('.hist-main');
+    if (item) {
+      state.historySel = state.historySel === item.dataset.id ? null : item.dataset.id;
+      renderHistory();
+      if (state.historySel && window.matchMedia('(max-width: 899px)').matches) {
+        var el = $('.hist-item.is-sel'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  });
+
+  /* ====================== 6. 設定 ====================== */
+  function renderSettings() {
+    if (document.activeElement !== $('#strideIn')) $('#strideIn').value = settings.strideCm;
+    $('#strideError').hidden = true;
+    var hs = $('#homeStatus');
+    var icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z"/></svg>';
+    if (settings.home) {
+      hs.innerHTML = icon + '<span><b>登録してあります</b><br>' + esc(settings.home.labelJa) + '</span>';
+    } else {
+      hs.innerHTML = icon + '<span>まだ登録されていません</span>';
+    }
+    $('#btnHomeClear').hidden = !settings.home;
+    var cur = { fontScale: settings.fontScale, walkSpeed: String(settings.walkSpeed), voice: settings.voice ? '1' : '0', goalPeriod: settings.goal ? settings.goal.period : 'none' };
+    $$('[data-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(cur[b.dataset.set] === b.dataset.v)); });
+    $('#voiceSec').hidden = !voiceOk();
+    $('#goalKmRow').hidden = !settings.goal;
+    if (settings.goal && document.activeElement !== $('#goalIn')) $('#goalIn').value = kmText(settings.goal.meters);
+    $('#goalError').hidden = true;
+    $('#chkSkipped').checked = !!settings.showSkipped;
+    renderCourseManage();
+    drawSettingsLayer();
+  }
+  function setGoalKm(km) {
+    if (!settings.goal) return false;
+    if (!isFinite(km) || km < 1 || km > 1000) { var e = $('#goalError'); e.textContent = '目標は 1km から 1000km の間で入れてください'; e.hidden = false; return false; }
+    settings.goal.meters = Math.round(km * 10) * 100; saveSettings();
+    $('#goalIn').value = kmText(settings.goal.meters); $('#goalError').hidden = true;
+    return true;
+  }
+  function drawSettingsLayer() {
+    if (!map) return;
+    layers.settings.clearLayers();
+    if (settings.home) pinMarker([settings.home.lat, settings.home.lng], '家', 'home').addTo(layers.settings);
+  }
+  function setStride(v, fromCalc) {
+    v = Math.round(v);
+    if (!isFinite(v) || v < 30 || v > 150) {
+      var e = $('#strideError'); e.textContent = '歩幅は 30cm から 150cm の間で入れてください'; e.hidden = false;
+      return false;
+    }
+    settings.strideCm = v; saveSettings();
+    $('#strideIn').value = v; $('#strideError').hidden = true;
+    if (fromCalc) toast('歩幅を ' + v + 'cm にしました');
+    return true;
+  }
+  function setHome(home) {
+    settings.home = home; saveSettings();
+    renderSettings(); renderForm(); drawFormLayer();
+    if (map && home) map.setView([home.lat, home.lng], Math.max(map.getZoom(), 16));
+    toast('家の場所を登録しました');
+  }
+  function homeFromHere() {
+    var st = $('#homeHereStatus');
+    var done = function (p) {
+      st.hidden = true;
+      var d = new Date();
+      var acc = accuracyText(p.accuracy);
+      setHome({ lat: p.lat, lng: p.lng, labelJa: (d.getMonth() + 1) + '月' + d.getDate() + '日に登録した場所' + (acc ? '（' + acc + '）' : '') });
+    };
+    if (DEV.start) { done({ lat: DEV.start.lat, lng: DEV.start.lng, accuracy: null }); return; }
+    if (!window.isSecureContext || !navigator.geolocation) {
+      st.hidden = false; st.textContent = 'この開き方では今いる場所を調べられません。「地図をタップして決める」か「住所で探す」を使ってください。'; return;
+    }
+    st.hidden = false; st.textContent = '今いる場所を調べています…';
+    navigator.geolocation.getCurrentPosition(function (p) {
+      done({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy });
+    }, function (err) {
+      st.textContent = err.code === 1
+        ? '位置情報（今いる場所）を使うことが許可されていません。「地図をタップして決める」か「住所で探す」を使ってください。'
+        : '今いる場所がわかりませんでした。空が見える場所でもう一度ためすか、ほかの方法で決めてください。';
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+  }
+  var addrCache = [];
+  function searchAddress(q) {
+    var st = $('#addrStatus'), ul = $('#addrResults');
+    q = q.trim();
+    ul.innerHTML = '';
+    if (!q) { st.hidden = false; st.textContent = '住所を入れてください'; return Promise.resolve(); }
+    st.hidden = false; st.textContent = '探しています…';
+    var ctrl = new AbortController(), timer = setTimeout(function () { ctrl.abort(); }, 12000);
+    return fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q), { signal: ctrl.signal })
+      .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then(function (data) {
+        clearTimeout(timer);
+        addrCache = (Array.isArray(data) ? data : []).filter(function (f) {
+          return f && f.geometry && Array.isArray(f.geometry.coordinates) && isFinite(f.geometry.coordinates[0]) && isFinite(f.geometry.coordinates[1]);
+        }).slice(0, 10);
+        if (!addrCache.length) { st.textContent = '見つかりませんでした。「〇〇県〇〇市〇〇町」のように、もう少しくわしく入れてみてください。'; return; }
+        st.textContent = addrCache.length === 1 ? '見つかりました。合っていればタップしてください。' : addrCache.length + '件見つかりました。家の場所をタップしてください。';
+        ul.innerHTML = addrCache.map(function (f, i) {
+          return '<li><button type="button" data-ai="' + i + '">' + esc((f.properties && f.properties.title) || '名前のない場所') + '</button></li>';
+        }).join('');
+        if (st.scrollIntoView) st.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      })
+      .catch(function () {
+        clearTimeout(timer);
+        st.textContent = '住所を探せませんでした。インターネットにつながっているか確かめて、もう一度ためしてください。';
+      });
+  }
+  $('#addrResults').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ai]');
+    if (!b) return;
+    var f = addrCache[+b.dataset.ai];
+    if (!f) return;
+    $('#addrResults').innerHTML = ''; $('#addrStatus').hidden = true;
+    setHome({ lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], labelJa: (f.properties && f.properties.title) || '住所で選んだ場所' });
+  });
+
+  /* ====================== ボタンのつなぎこみ ====================== */
+  $('#tabs').addEventListener('click', function (e) { var t = e.target.closest('.tab'); if (t) switchTab(t.dataset.tab); });
+  $('#handle').addEventListener('click', function () { setCollapsed(!$('#panel').classList.contains('collapsed')); });
+  $$('[data-mode]').forEach(function (b) {
+    b.addEventListener('click', function () { settings.inputMode = b.dataset.mode; saveSettings(); $('#amount').blur(); renderForm(); });
+  });
+  $$('[data-goal]').forEach(function (b) {
+    b.addEventListener('click', function () { settings.goalType = b.dataset.goal; saveSettings(); renderForm(); drawFormLayer(); });
+  });
+  $('#chips').addEventListener('click', function (e) {
+    var c = e.target.closest('.chip'); if (!c) return;
+    $('#amount').value = c.dataset.v; rememberAmount(); updateConversion(); $('#searchError').hidden = true;
+  });
+  $('#amount').addEventListener('input', function () { updateConversion(); rememberAmount(); $('#searchError').hidden = true; });
+  $('#amount').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#amount').blur(); onSearchClick(); } });
+  $('#btnMinus').addEventListener('click', function () { stepAmount(-1); });
+  $('#btnPlus').addEventListener('click', function () { stepAmount(1); });
+  $('#btnPickStart').addEventListener('click', function () { enterPick('start'); });
+  $('#btnUseGps').addEventListener('click', function () {
+    state.startSource = 'gps';
+    if (gps.pos) setStart(gps.pos, 'gps'); else { state.start = null; renderStartStatus(); drawFormLayer(); }
+    startGpsWatch();
+  });
+  $('#btnGoRegister').addEventListener('click', function () {
+    switchTab('settings');
+    var sec = $('#homeSec'); if (sec.scrollIntoView) sec.scrollIntoView({ block: 'start' });
+  });
+  $('#btnSearch').addEventListener('click', onSearchClick);
+  $('#btnAbort').addEventListener('click', function () { if (state.abort) state.abort.abort(); else backToForm(); });
+  $('#routeCards').addEventListener('click', function (e) { var c = e.target.closest('.route-card'); if (c) selectRoute(+c.dataset.i); });
+  $('#btnWalk').addEventListener('click', startWalk);
+  $('#btnAnother').addEventListener('click', function () {
+    var q = Object.assign({}, state.lastQuery); q.variant = (q.variant || 0) + 1; runSearch(q);
+  });
+  $('#btnRetry').addEventListener('click', function () { if (state.lastQuery) runSearch(state.lastQuery); });
+  $('#btnChange').addEventListener('click', backToForm);
+  $('#btnChange2').addEventListener('click', backToForm);
+  $('#btnEnd').addEventListener('click', confirmEnd);
+  $('#btnRecenter').addEventListener('click', recenter);
+
+  $('#strideIn').addEventListener('change', function () { if (!setStride(parseNum($('#strideIn').value))) $('#strideIn').value = settings.strideCm; });
+  $('#strideMinus').addEventListener('click', function () { setStride(settings.strideCm - 1); });
+  $('#stridePlus').addEventListener('click', function () { setStride(settings.strideCm + 1); });
+  $('#btnCalcStride').addEventListener('click', function () {
+    var h = parseNum($('#heightIn').value), e = $('#heightError');
+    if (!isFinite(h) || h < 80 || h > 230) { e.textContent = '身長を cm で入れてください（例：160）'; e.hidden = false; return; }
+    e.hidden = true;
+    setStride(Math.round(h * 0.45), true);
+  });
+  $('#scr-settings').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-set]');
+    if (!b) return;
+    var k = b.dataset.set, v = b.dataset.v;
+    if (k === 'fontScale') { settings.fontScale = v; applyFontScale(); }
+    else if (k === 'walkSpeed') settings.walkSpeed = +v;
+    else if (k === 'voice') { setVoice(v === '1'); return; }
+    else if (k === 'goalPeriod') settings.goal = v === 'none' ? null : { period: v, meters: settings.goal ? settings.goal.meters : (v === 'week' ? 20000 : 80000) };
+    saveSettings(); renderSettings();
+  });
+  $('#goalIn').addEventListener('change', function () { if (!setGoalKm(parseNum($('#goalIn').value)) && settings.goal) $('#goalIn').value = kmText(settings.goal.meters); });
+  $('#goalMinus').addEventListener('click', function () { if (settings.goal) setGoalKm(Math.max(1, Math.ceil(settings.goal.meters / 1000) - 1)); });
+  $('#goalPlus').addEventListener('click', function () { if (settings.goal) setGoalKm(Math.floor(settings.goal.meters / 1000) + 1); });
+  $('#chkSkipped').addEventListener('change', function () { settings.showSkipped = $('#chkSkipped').checked; saveSettings(); });
+  $('#btnVoice').addEventListener('click', function () { setVoice(!settings.voice); });
+  $('#btnShortcut').addEventListener('click', askShortcut);
+  $('#btnOffClose').addEventListener('click', hideScreenOff);
+  $('#btnAllCourses').addEventListener('click', openAllCourses);
+  $('#btnHomeHere').addEventListener('click', homeFromHere);
+  $('#btnHomeMap').addEventListener('click', function () {
+    if (settings.home && map) map.setView([settings.home.lat, settings.home.lng], Math.max(map.getZoom(), 16));
+    else if (state.start && map) map.setView([state.start.lat, state.start.lng], Math.max(map.getZoom(), 16));
+    enterPick('home');
+  });
+  $('#addrForm').addEventListener('submit', function (e) { e.preventDefault(); $('#addrIn').blur(); searchAddress($('#addrIn').value); });
+  $('#btnHomeClear').addEventListener('click', function () {
+    openModal({
+      title: '家の登録を消しますか？',
+      bodyHtml: '<p>「家に戻る」ルートを探すには、もう一度登録が必要になります。</p>',
+      actions: [
+        { label: '消す', kind: 'btn-danger-fill', onClick: function () { settings.home = null; saveSettings(); renderSettings(); renderForm(); drawFormLayer(); toast('家の登録を消しました'); } },
+        { label: 'やめる', kind: '' }
+      ]
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { if (!$('#modal').hidden) { /* 閉じるボタンで閉じる */ } else if (state.pick) cancelPick(); }
+  });
+
+  /* ====================== 前回の散歩が途中のとき ====================== */
+  function snapElapsed(snap) {
+    if (isFinite(snap.elapsedMs)) return snap.elapsedMs;
+    var a = Date.parse(snap.startedAt), b = Date.parse(snap.lastUpdatedAt);
+    return isFinite(a) && isFinite(b) && b > a ? b - a : 0;
+  }
+  function snapRoute(snap) {
+    var r = snap && (snap.origRoute || snap.route); // 近道に切りかえていたときは、元のルートが origRoute に入っている
+    return r && Array.isArray(r.coords) && r.coords.length > 1 ? r : null;
+  }
+  function checkResume() {
+    if (!window.WalkTracker || typeof window.WalkTracker.loadActive !== 'function') return;
+    var snap = null;
+    try { snap = window.WalkTracker.loadActive(); } catch (e) { snap = null; }
+    if (!snap) return;
+    var route = snapRoute(snap);
+    // ルートが無い・ほとんど歩いていない・ゴール済みのものは、聞かずにそっと消す
+    if (!route || !((snap.walkedMeters || 0) >= 30) || snap.reachedGoal) { try { window.WalkTracker.clearActive(); } catch (e) {} return; }
+    openModal({
+      title: '前回の散歩が途中です（' + fmtDist(snap.walkedMeters || 0) + '・' + fmtDurationMs(snapElapsed(snap)) + '）',
+      bodyHtml: '<p>' + esc(fmtWhen(snap.startedAt)) + ' に始めた「' + esc(route.labelJa || 'ルート') + '」の散歩です。続きから歩くか、ここで終わりにできます。</p>',
+      actions: [
+        { label: '続きから歩く', kind: 'btn-primary', onClick: function () { resumeWalk(snap); } },
+        { label: '終わりにして記録する', kind: '', onClick: function () { finishSnapshot(snap); } },
+        { label: '記録しないで消す', kind: 'btn-danger', onClick: function () {
+          try { window.WalkTracker.clearActive(); } catch (e) {}
+          toast('前回の散歩を消しました');
+        } }
+      ]
+    });
+  }
+  function snapQuery(snap, route) {
+    var c0 = route.coords[0], st = snap.start && isFinite(snap.start.lat) ? snap.start : { lat: c0[0], lng: c0[1] };
+    var home = snap.goalType === 'home' && snap.goal && isFinite(snap.goal.lat);
+    return { start: { lat: st.lat, lng: st.lng }, goal: home ? { lat: snap.goal.lat, lng: snap.goal.lng } : null, goalType: home ? 'home' : 'start', targetMeters: Math.round(route.distanceMeters || 0), variant: 0, courseId: snap.courseId || null };
+  }
+  function resumeWalk(snap) {
+    var route = snapRoute(snap);
+    if (!route) return;
+    if (state.abort) { try { state.abort.abort(); } catch (e) {} }
+    state.searchToken++;
+    state.lastQuery = snapQuery(snap, route);
+    state.routes = [route]; state.notice = null; state.selected = 0;
+    state.tab = 'search';
+    showResults();
+    startWalk({ resumeFrom: snap, courseId: snap.courseId || null });
+    var w = state.walk, sc = snap.usedShortcut && snap.origRoute ? snap.route : null;
+    if (w && sc && sc.coords && sc.coords.length > 1) { w.resumedShortcut = true; applyShortcut(w, sc); } // 近道に切りかえたあとで止まっていたとき
+  }
+  // 続きを歩かずに、途中までを記録として残す
+  function finishSnapshot(snap) {
+    var route = snapRoute(snap), summary = null;
+    try {
+      var q = snapQuery(snap, route);
+      var goal = q.goal || q.start;
+      var noGeo = { watchPosition: function () { return 1; }, clearWatch: function () {} }; // 本物の GPS は使わない
+      var t = window.WalkTracker.create({ route: route, goal: goal, goalType: q.goalType, strideCm: settings.strideCm, resumeFrom: snap, geolocation: noGeo, onUpdate: function () {}, onGoal: function () {}, onError: function () {} });
+      t.start();
+      summary = t.stop();
+      // 時間は「最後に保存された時」までにする（アプリを閉じていた時間は入れない）
+      if (summary) { summary.durationMs = snapElapsed(snap); if (snap.lastUpdatedAt) summary.endedAt = snap.lastUpdatedAt; }
+    } catch (e) { summary = null; }
+    try { window.WalkTracker.clearActive(); } catch (e) {}
+    if (!summary) { toast('記録を作れませんでした'); return; }
+    if (!(summary.walkedMeters >= 30)) { toast('歩いた距離が短かったので、記録は残していません'); return; }
+    try { window.WalkHistory.save(summary); toast('前回の散歩を記録しました'); } catch (e) { toast('記録を保存できませんでした'); }
+  }
+
+  /* ====================== 開発用：画面の状態を再現する（?demo=） ====================== */
+  function whenStartReady(fn, tries) {
+    tries = tries || 0;
+    if (state.start) return fn();
+    if (tries > 100) return;
+    setTimeout(function () { whenStartReady(fn, tries + 1); }, 100);
+  }
+  function runDemo() {
+    var d = DEV.demo;
+    if (!d) return;
+    if (d === 'settings') { switchTab('settings'); return; }
+    if (d === 'address') { switchTab('settings'); $('#addrIn').value = params.get('q') || '東京都千代田区丸の内'; searchAddress($('#addrIn').value); return; }
+    if (d === 'history') {
+      switchTab('history');
+      try { var l = window.WalkHistory.list(); if (l.length) { state.historySel = l[0].id; renderHistory(); } } catch (e) {}
+      return;
+    }
+    if (d === 'pick') { enterPick('start'); return; }
+    if (d === 'resume') return; // 前回の続きの窓は init で出す
+    if (d === 'collapsed') { setCollapsed(true); return; }
+    whenStartReady(function () {
+      var r = onSearchClick();
+      if (!r || !r.then) return;
+      if (d === 'searching') return;
+      r.then(function () {
+        if (d === 'results2') selectRoute(1);
+        if (d === 'walk' || d === 'finish' || d === 'goal' || d === 'shortcut') startWalk();
+        if (d === 'finish') setTimeout(confirmEnd, 3000);
+        if (d === 'shortcut') setTimeout(askShortcut, 3000);
+      });
+    });
+  }
+
+  /* ====================== はじめ ====================== */
+  function init() {
+    showModuleError();
+    initMap();
+    renderForm();
+    state.tab = 'search'; state.searchView = 'form';
+    render();
+    startGpsWatch();
+    drawFormLayer();
+    runDemo();
+    if (!DEV.demo || DEV.demo === 'resume') checkResume();
+    // 日の入りまでの時間は、入力の画面を出している間 1分ごとに出し直す
+    setInterval(function () { if (state.tab === 'search' && state.searchView === 'form') renderSun(); }, 60000);
+  }
+  try { init(); } catch (e) {
+    var box = $('#moduleError');
+    box.hidden = false;
+    box.innerHTML = '<span class="msg-title">アプリを始められませんでした</span><p>ページを読み込み直してください。</p><button type="button" class="btn" onclick="location.reload()">ページを読み込み直す</button>';
+    $('#scr-form').hidden = false;
+    throw e;
+  }
+})();
+</script>
+</body>
+</html>

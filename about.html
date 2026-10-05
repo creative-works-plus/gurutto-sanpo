@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ぐるっとさんぽとは｜散歩コースを自動で作る無料アプリの使い方</title>
+<meta name="description" content="ぐるっとさんぽは、「30分」「3km」などと入れるだけで、今いる場所から歩いて戻れる散歩ルートを自動で3本作る無料のWebアプリです。曲がり角の案内、トイレ・コンビニ、坂道の多さもわかります。">
+<!-- 公開前のテスト中。宣伝を始めるときに外す -->
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B6B53">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ぐるっとさんぽ">
+<meta property="og:title" content="ぐるっとさんぽ｜散歩コースを自動で作る無料アプリ">
+<meta property="og:description" content="「30分」「3km」と入れるだけ。今いる場所から歩いて戻れる散歩ルートを3本、地図に出します。曲がり角の案内・トイレやコンビニ・坂の多さもわかります。">
+<meta property="og:image" content="https://creative-works-plus.github.io/gurutto-sanpo/img/ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ぐるっとさんぽ｜散歩コースを自動で作る無料アプリ">
+<meta name="twitter:description" content="「30分」「3km」と入れるだけ。今いる場所から歩いて戻れる散歩ルートを3本、地図に出します。">
+<meta name="twitter:image" content="https://creative-works-plus.github.io/gurutto-sanpo/img/ogp.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png">
+<style>
+  :root {
+    --ink: #1C2925; --ink-2: #47554F; --bg: #FFFFFF; --surface: #EFF3F1; --line: #BFCAC4;
+    --primary: #0B6B53; --primary-dark: #07503E; --primary-soft: #E2F1EB; --sun: #FFD23F;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    font-size: 18px; line-height: 1.75;
+  }
+  a { color: var(--primary-dark); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+  header.top { border-bottom: 1px solid var(--line); }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: var(--primary-dark); text-decoration: none; }
+  .logo svg { width: 34px; height: 34px; flex: 0 0 auto; }
+  .top-cta { font-weight: 700; font-size: 16px; white-space: nowrap; }
+
+  .hero { background: var(--primary-soft); padding: 32px 0 36px; }
+  .hero h1 { font-size: 30px; line-height: 1.4; margin: 0 0 12px; letter-spacing: .01em; }
+  .hero h1 .nw, .nw { white-space: nowrap; }
+  .hero p.lead { font-size: 19px; margin: 0 0 22px; }
+  .btn-go {
+    display: flex; align-items: center; justify-content: center; width: 100%; max-width: 420px; min-height: 60px;
+    background: var(--primary); color: #fff; font-size: 21px; font-weight: 800; text-decoration: none;
+    border-radius: var(--radius); box-shadow: 0 3px 0 var(--primary-dark); padding: 8px 18px; text-align: center;
+  }
+  .btn-go:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--primary-dark); }
+  .hero .note { font-size: 15px; color: var(--ink-2); margin: 10px 0 0; }
+
+  section.blk { padding: 36px 0 8px; }
+  h2 { font-size: 25px; line-height: 1.45; margin: 0 0 16px; padding-left: 12px; border-left: 6px solid var(--primary); }
+  h3 { font-size: 20px; line-height: 1.5; margin: 0 0 6px; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 26px; }
+  .step { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .step .num { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; font-size: 20px; margin-right: 8px; flex: 0 0 auto; }
+  .step h3 { display: flex; align-items: center; font-size: 21px; }
+  .step p { margin: 0; }
+  .shot { display: block; width: 100%; max-width: 300px; height: auto; border-radius: 18px; border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.10); margin: 4px auto 0; background: var(--surface); }
+  @media (min-width: 700px) {
+    .step { grid-template-columns: 1fr 280px; align-items: center; gap: 24px; }
+    .step .shot { margin: 0; }
+  }
+
+  .feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  @media (min-width: 640px) { .feats { grid-template-columns: 1fr 1fr; } }
+  .feat { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; }
+  .feat h3 { font-size: 19px; color: var(--primary-dark); }
+  .feat p { margin: 0; font-size: 17px; }
+
+  .who { margin: 0; padding-left: 1.3em; }
+  .who li { margin: 0 0 6px; }
+
+  .faq details { border: 2px solid var(--line); border-radius: var(--radius); margin: 0 0 10px; background: #fff; }
+  .faq summary { cursor: pointer; font-weight: 800; padding: 14px 44px 14px 16px; position: relative; list-style: none; min-height: 56px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "＋"; position: absolute; right: 16px; top: 13px; color: var(--primary); font-weight: 800; }
+  .faq details[open] summary::after { content: "－"; }
+  .faq details > div { padding: 0 16px 14px; }
+  .faq details > div p { margin: 0 0 8px; }
+
+  .credit { font-size: 15px; color: var(--ink-2); line-height: 1.8; }
+  .credit ul { margin: 0; padding-left: 1.2em; }
+  .bottom-cta { background: var(--primary-soft); padding: 30px 0 34px; margin-top: 36px; text-align: center; }
+  .bottom-cta p { margin: 0 0 14px; font-weight: 700; }
+  .bottom-cta .btn-go { margin: 0 auto; }
+  footer { padding: 18px 0 32px; font-size: 14px; color: var(--ink-2); text-align: center; }
+  @media (max-width: 380px) {
+    body { font-size: 17px; }
+    .hero h1 { font-size: 26px; }
+    h2 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="index.html">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0B6B53"/><path d="M14 46c8-2 10-10 18-12s12-10 18-18" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="2 9"/><circle cx="50" cy="16" r="6" fill="#FFD23F"/></svg>
+      ぐるっとさんぽ
+    </a>
+    <a class="top-cta" href="index.html">使ってみる</a>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <h1>散歩コースを<span class="nw">自動で作る、</span><br><span class="nw">無料の散歩ルートアプリ</span></h1>
+      <p class="lead">「30分」「3km」などと入れるだけ。今いる場所から歩いて戻ってこられる散歩ルートを、地図に3本出します。登録もインストールもいりません。</p>
+      <a class="btn-go" href="index.html">さっそく使ってみる</a>
+      <p class="note">スマホのブラウザ（Safari・Chrome）でそのまま使えます。</p>
+    </div>
+  </div>
+
+  <section class="blk" id="how">
+    <div class="wrap">
+      <h2>使い方は3ステップ</h2>
+      <ol class="steps">
+        <li class="step">
+          <div>
+            <h3><span class="num">1</span>歩きたい時間か距離を入れる</h3>
+            <p>「30分」「3km」「5,000歩」のどれでも入れられます。30分の散歩コースがほしいときは「時間で決める」を選んで「30分」を押すだけ。今いる場所はGPSで自動で調べます。</p>
+          </div>
+          <img class="shot" src="img/step1.png" width="600" height="1298" alt="歩く時間や距離を入れる画面" loading="lazy">
+        </li>
+        <li class="step">
+          <div>
+            <h3><span class="num">2</span>3本のルートから選ぶ</h3>
+            <p>ウォーキングコースを自動で3本作成して、地図に色分けして出します。それぞれの距離・歩数・かかる時間と、坂道が少ないか多いかもわかります。気に入らなければ「別のルートを探す」でちがう3本が出ます。</p>
+          </div>
+          <img class="shot" src="img/step2.png" width="600" height="1298" alt="地図に3本のルートが出た画面" loading="lazy">
+        </li>
+        <li class="step">
+          <div>
+            <h3><span class="num">3</span>案内にそって歩く</h3>
+            <p>「80m先 右に曲がる」のように、曲がり角を大きな文字でお知らせします。歩いた道は緑の線になり、歩いた距離・歩数・残りの距離もひと目でわかります。音声案内も使えます。</p>
+          </div>
+          <img class="shot" src="img/step3.png" width="600" height="1298" alt="曲がり角の案内と歩いた道が緑で出る歩行中の画面" loading="lazy">
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="blk" id="features">
+    <div class="wrap">
+      <h2>できること</h2>
+      <ul class="feats">
+        <li class="feat"><h3>時間・距離・歩数で決められる</h3><p>「今日は30分だけ」「1万歩歩きたい」に合わせて、ちょうどよい長さの散歩コースを自動で作ります。</p></li>
+        <li class="feat"><h3>出発した場所か、家に戻る</h3><p>ぐるっと一周して出発地点に戻るコースのほか、外出先から歩いて家に帰るコースも作れます。</p></li>
+        <li class="feat"><h3>坂道が少ないコースがわかる</h3><p>ルートごとに「平ら」「少し坂あり」「坂が多い」と上りの合計を出すので、坂道の少ないコースを選べます。</p></li>
+        <li class="feat"><h3>トイレ・コンビニを地図に</h3><p>ルート沿いのトイレとコンビニを地図に出し、歩いている間も「この先のトイレ：約300m先」とお知らせします。</p></li>
+        <li class="feat"><h3>曲がり角の案内と音声</h3><p>次に曲がる所を文字で大きく出します。音声案内は使う・使わないを選べます。</p></li>
+        <li class="feat"><h3>近道で帰る</h3><p>疲れたら、ボタン1つで今いる場所からゴールまでの近道に切りかえられます。</p></li>
+        <li class="feat"><h3>いつものコース</h3><p>気に入ったコースを保存して、次からはボタン1つで出発できます。</p></li>
+        <li class="feat"><h3>記録・グラフ・カレンダー</h3><p>歩いた日をカレンダーに○で残し、週・月の合計や連続して歩いた日数、目標まであと何kmかを出します。</p></li>
+        <li class="feat"><h3>1kmごとのペース</h3><p>歩いている間のペースと、1kmごとにかかった時間がわかります。</p></li>
+        <li class="feat"><h3>日の入りのお知らせ</h3><p>今日の日の入りの時刻を出し、歩き終わるころに暗くなりそうなときは注意を出します。</p></li>
+        <li class="feat"><h3>文字を大きくできる</h3><p>「ふつう」「大きい」「とても大きい」の3段階から選べます。</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="blk" id="who">
+    <div class="wrap">
+      <h2>こんな人におすすめ</h2>
+      <ul class="who">
+        <li>毎日の散歩コースがいつも同じで、たまにはちがう道を歩きたい</li>
+        <li>健康のために「30分」「1万歩」など決めた量だけウォーキングしたい</li>
+        <li>引っこしたばかり・旅行先で、近所の歩きやすい道を知りたい</li>
+        <li>坂道が少ないコースや、途中にトイレ・コンビニがあるコースを選びたい</li>
+        <li>犬の散歩やベビーカーでのお出かけに、ちょうどよい長さの道を探したい</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="blk faq" id="faq">
+    <div class="wrap">
+      <h2>よくある質問</h2>
+      <details>
+        <summary>無料で使えますか？</summary>
+        <div><p>はい、今は無料で使えます。会員登録やアプリのインストールもいりません。</p></div>
+      </details>
+      <details>
+        <summary>「位置情報の利用を許可しますか？」と出ました</summary>
+        <div>
+          <p>今いる場所から出発するルートを作るために、GPS（位置情報）を使います。「許可」を選んでください。</p>
+          <p>まちがえて「許可しない」を選んだときは、iPhone は「設定」→「プライバシーとセキュリティ」→「位置情報サービス」→「Safari の Web サイト」で、Android は Chrome のアドレスバー左のマークから位置情報を許可できます。地図をタップして出発地点を選ぶこともできます。</p>
+        </div>
+      </details>
+      <details>
+        <summary>歩いている間、画面は点けたままにする必要がありますか？</summary>
+        <div><p>はい。ブラウザで動くアプリなので、画面を消すと位置を測れなくなります。歩いている間は画面が自動で消えないようにしています。電源ボタンで画面を消すと、その間の道は記録されません（あとで「画面が消えていた約3分間は、位置を測れていませんでした」とお知らせします）。</p></div>
+      </details>
+      <details>
+        <summary>歩いた記録はどこに保存されますか？</summary>
+        <div>
+          <p>記録・いつものコース・設定は、お使いのスマホのブラウザの中だけに保存されます。どこかのサーバーに送られることはありません。</p>
+          <p>そのため、機種変更したときや、ブラウザの履歴・Webサイトのデータを消したときは、記録も消えます。別のスマホとは記録を共有できません。</p>
+        </div>
+      </details>
+      <details>
+        <summary>iPhone でも Android でも使えますか？</summary>
+        <div><p>どちらでも使えます。iPhone は Safari、Android は Chrome での利用をおすすめします。パソコンのブラウザでもルートを探せます。ホーム画面に追加しておくと、アプリのようにすぐ開けます。</p></div>
+      </details>
+      <details>
+        <summary>地図や道のデータはどこのものですか？</summary>
+        <div><p>地図と道・トイレ・コンビニの情報は、みんなで作る地図「OpenStreetMap」のデータを使っています。坂の多さは国土地理院の標高タイル、住所検索は国土地理院のサービスを使っています。くわしくは下の「出典・クレジット」をご覧ください。</p></div>
+      </details>
+      <details>
+        <summary>出てきたルートは必ず歩けますか？</summary>
+        <div><p>地図のデータから自動で作るため、工事中の道や、通りにくい道が入ることがあります。実際の道の様子や信号・標識を確かめながら、安全に歩いてください。</p></div>
+      </details>
+    </div>
+  </section>
+
+  <section class="blk" id="credit">
+    <div class="wrap credit">
+      <h2>出典・クレジット</h2>
+      <ul>
+        <li>地図：© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（地図の配信：<a href="https://openstreetmap.jp/" target="_blank" rel="noopener">OpenStreetMap Japan</a>）</li>
+        <li>道・トイレ・コンビニのデータ：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（ODbL）</li>
+        <li>ルート計算：<a href="https://routing.openstreetmap.de/" target="_blank" rel="noopener">FOSSGIS e.V. の OSRM（routing.openstreetmap.de）</a></li>
+        <li>トイレ・コンビニの検索：<a href="https://overpass-api.de/" target="_blank" rel="noopener">Overpass API</a></li>
+        <li>坂の多さ：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院 標高タイル</a></li>
+        <li>住所検索：<a href="https://msearch.gsi.go.jp/" target="_blank" rel="noopener">国土地理院 住所検索</a></li>
+        <li>地図の表示：<a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="bottom-cta">
+    <div class="wrap">
+      <p>今日の散歩コース、ぐるっと作ってみませんか？</p>
+      <a class="btn-go" href="index.html">さっそく使ってみる</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">ぐるっとさんぽ</div>
+</footer>
+</body>
+</html>
