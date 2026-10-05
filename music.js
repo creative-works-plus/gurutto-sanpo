@@ -3,7 +3,8 @@
  * 公開するのは window.Music だけ。依存なし。曲の一覧は music/list.json（形は 設計メモ.md「追加4」）。
  *
  *   Music.load([url])            → Promise<一覧>（失敗しても reject しない。失敗時は {categories:[]} と 'error'）
- *   Music.play(categoryKey, {shuffle}) → Promise<true|false>。最初の1回は必ずボタンを押した処理の中で呼ぶ
+ *   Music.play(categoryKey, {shuffle, trackId}) → Promise<true|false>。最初の1回は必ずボタンを押した処理の中で呼ぶ
+ *     trackId を渡すとその曲から始める（そのあとは shuffle:false なら一覧の順、true ならおまかせ）
  *   Music.pause() / resume() / next() / prev() / stop()
  *   Music.setVolume(0〜1) / getVolume() / volumeSupported()（iPhone・iPad は false → 本体の音量ボタンで調整）
  *   Music.isPlaying() / current() → {track, categoryKey} / lastCategory()
@@ -417,7 +418,14 @@
       cat = c; catKey = key; lastCat = key; saveStore();
       order = makeOrder(c.tracks.length, null);
       failStreak = 0;
-      return startAt(pickPos(0, 0));
+      var startPos = 0;
+      if (opts.trackId != null) {
+        for (var i = 0; i < order.length; i++) {
+          var tt = c.tracks[order[i]];
+          if (tt && (tt.id || tt.file) === opts.trackId) { startPos = i; break; }
+        }
+      }
+      return startAt(pickPos(startPos, 0));
     } catch (e) {
       return Promise.resolve(false);
     }

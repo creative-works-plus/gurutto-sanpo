@@ -605,6 +605,15 @@
   .ms-cat small { display: block; font-size: calc(14px * var(--fs)); color: var(--ink-2); line-height: 1.45; }
   .ms-cat[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
   .ms-cat[aria-pressed="true"] b::after { content: "選択中"; margin-left: 8px; font-size: calc(12px * var(--fs)); font-weight: 800; color: #fff; background: var(--primary); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
+  .ms-mode { margin: 6px 0 10px; }
+  .ms-tracks { margin: 4px 0 12px; }
+  .ms-th { margin: 10px 0 4px; font-size: calc(15px * var(--fs)); color: var(--ink-2); }
+  .ms-tracks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .ms-track { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; text-align: left; padding: 8px 12px; border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-size: calc(16px * var(--fs)); }
+  .ms-track .tt { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+  .ms-track .td { flex: 0 0 auto; color: var(--ink-2); font-size: calc(14px * var(--fs)); font-variant-numeric: tabular-nums; }
+  .ms-track[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
+  .ms-track .now { flex: 0 0 auto; font-size: calc(12px * var(--fs)); font-weight: 800; color: #fff; background: var(--primary); border-radius: 6px; padding: 1px 6px; }
   .ms-now { text-align: center; margin: 4px 0 6px; min-height: 2.8em; }
   .ms-now .t { font-weight: 800; font-size: calc(17px * var(--fs)); overflow-wrap: anywhere; }
   .ms-now .a { color: var(--ink-2); font-size: calc(14px * var(--fs)); }
@@ -1070,7 +1079,7 @@
   var SETTINGS_KEY = 'sanpo.settings';
   var DEFAULTS = { strideCm: 70, home: null, goalType: 'start', inputMode: 'km', lastKm: 3, lastSteps: 5000, lastMin: 30,
     walkSpeed: 80, voice: false, fontScale: 'normal', showSkipped: true, goal: null, radar: false,
-    musicCat: null, musicVol: 0.6, tipPocketSeen: false };
+    musicCat: null, musicMode: 'auto', musicVol: 0.6, tipPocketSeen: false };
   function loadSettings() {
     var s = Object.assign({}, DEFAULTS);
     try {
@@ -1088,6 +1097,7 @@
         if (typeof o.showSkipped === 'boolean') s.showSkipped = o.showSkipped;
         if (typeof o.radar === 'boolean') s.radar = o.radar;
         if (typeof o.musicCat === 'string' && /^[\w-]{1,30}$/.test(o.musicCat)) s.musicCat = o.musicCat;
+        if (o.musicMode === 'auto' || o.musicMode === 'pick') s.musicMode = o.musicMode;
         if (isFinite(o.musicVol) && o.musicVol >= 0 && o.musicVol <= 1) s.musicVol = +o.musicVol;
         if (typeof o.tipPocketSeen === 'boolean') s.tipPocketSeen = o.tipPocketSeen;
         if (o.goal && (o.goal.period === 'week' || o.goal.period === 'month') && isFinite(o.goal.meters) && o.goal.meters > 0) s.goal = { period: o.goal.period, meters: +o.goal.meters };
@@ -1857,10 +1867,6 @@
   // 音量つまみが効くか（iPhone・iPad は効かないので、本体のボタンで調整してもらう）
   function musicVolOk() { var M = musicApi(); try { return !(M && typeof M.volumeSupported === 'function' && !M.volumeSupported()); } catch (e) { return true; } }
   function musicVolNow() { var M = musicApi(); try { var v = M && M.getVolume ? M.getVolume() : NaN; return isFinite(v) ? clamp(v, 0, 1) : settings.musicVol; } catch (e) { return settings.musicVol; } }
-  function musicCatName(key) {
-    var c = musicCats().filter(function (x) { return x.key === key; })[0];
-    return c ? c.nameJa || '' : '';
-  }
   function renderMusic() {
     var on = music.ok, cur = on ? musicCur() : null, playing = on && musicPlaying();
     // 歩く画面のボタン・入力画面の入口・設定の出典
@@ -1888,27 +1894,44 @@
     var cur = musicCur(), playing = musicPlaying(), sel = cur ? cur.categoryKey : (musicLastCat() || settings.musicCat);
     var cats = musicCats();
     if (!cats.some(function (c) { return c.key === sel; })) sel = null;
-    var t = cur && cur.track;
-    var h = '<div class="ms-head"><h2 id="msTitle">散歩の音楽</h2><button type="button" class="ms-close" data-ms="close" aria-label="閉じる">×</button></div>' +
-      '<div class="ms-cats" role="group" aria-label="曲の種類">' + cats.map(function (c) {
+    var t = cur && cur.track, pick = settings.musicMode === 'pick';
+    var modeSeg = '<div class="seg ms-mode" role="group" aria-label="曲の流し方">' +
+      '<button type="button" data-ms-mode="auto" aria-pressed="' + !pick + '">おまかせで流す</button>' +
+      '<button type="button" data-ms-mode="pick" aria-pressed="' + pick + '">曲を選ぶ</button></div>';
+    var catsHtml = '<div class="ms-cats" role="group" aria-label="曲の種類">' + cats.map(function (c) {
         return '<button type="button" class="ms-cat" data-ms-cat="' + esc(c.key) + '" aria-pressed="' + (c.key === sel) + '"><b>' + esc(c.nameJa || c.key) + '</b>' + (c.descJa ? '<small>' + esc(c.descJa) + '</small>' : '') + '</button>';
-      }).join('') + '</div>' +
-      '<div class="ms-now" aria-live="polite">' + (t ? '<div class="t">' + esc(t.title || '') + '</div><div class="a">' + (music.state === 'loading' && playing ? '読みこんでいます…' : esc(t.artist || '') + (cur.categoryKey ? '（' + esc(musicCatName(cur.categoryKey)) + '）' : '')) + '</div>'
-        : '<div class="a">上から曲の種類を選ぶと、音楽が始まります</div>') + '</div>' +
+      }).join('') + '</div>';
+    // 曲を選ぶ：種類ごとに曲の一覧を出す。押した曲から始めて、そのあとは一覧の順に流す
+    var curId = t ? (t.id || t.file) : null;
+    var tracksHtml = '<div class="ms-tracks">' + cats.map(function (c) {
+        return '<h3 class="ms-th">' + esc(c.nameJa || c.key) + '</h3><ul>' + c.tracks.map(function (x) {
+          var id = x.id || x.file, on = cur && cur.categoryKey === c.key && id === curId;
+          var d = isFinite(x.durationSec) && x.durationSec > 0 ? Math.floor(x.durationSec / 60) + ':' + ('0' + Math.round(x.durationSec % 60)).slice(-2) : '';
+          return '<li><button type="button" class="ms-track" data-ms-track="' + esc(id) + '" data-ms-tcat="' + esc(c.key) + '" aria-pressed="' + !!on + '">' +
+            '<span class="tt">' + esc(x.title || '') + '</span>' + (on ? '<span class="now">' + (playing ? '再生中' : '一時停止中') + '</span>' : '') + (d ? '<span class="td">' + d + '</span>' : '') + '</button></li>';
+        }).join('') + '</ul>';
+      }).join('') + '</div>';
+    var hint = pick ? '下の一覧から曲を選ぶと、その曲から始まります' : '上から曲の種類を選ぶと、音楽が始まります';
+    var h = '<div class="ms-head"><h2 id="msTitle">散歩の音楽</h2><button type="button" class="ms-close" data-ms="close" aria-label="閉じる">×</button></div>' +
+      modeSeg + (pick ? '' : catsHtml) +
+      '<div class="ms-now" aria-live="polite">' + (t ? '<div class="t">' + esc(t.title || '') + '</div><div class="a">' + (music.state === 'loading' && playing ? '読みこんでいます…' : esc(t.artist || '')) + '</div>'
+        : '<div class="a">' + hint + '</div>') + '</div>' +
       '<div class="ms-ctrl">' +
         '<button type="button" data-ms="prev" aria-label="前の曲"' + (t ? '' : ' disabled') + '>' + PREV_SVG + '</button>' +
         '<button type="button" class="ms-play" data-ms="play" aria-label="' + (playing ? '一時停止' : '再生') + '">' + (playing ? PAUSE_SVG : PLAY_SVG) + '</button>' +
         '<button type="button" data-ms="next" aria-label="次の曲"' + (t ? '' : ' disabled') + '>' + NEXT_SVG + '</button></div>' +
+      (pick ? tracksHtml : '') +
       (musicVolOk() ? '<label class="ms-vol"><span class="nw">音量</span><input type="range" id="msVol" min="0" max="100" step="5" value="' + Math.round(musicVolNow() * 100) + '"></label>'
         : '<p class="ms-note">音量は、スマホ本体の音量ボタンで調整してください。</p>') +
       (music.err ? '<p class="ms-err" role="alert">' + esc(music.err) + '</p>' : '') +
       '<p class="ms-note ear">周りの音が聞こえる音量で聞きましょう。車や自転車の音に気をつけてください。</p>' +
       '<p class="ms-note">通信するのは、音楽をかけている間だけです。</p>' +
       '<p class="ms-note"><button type="button" class="btn-link" data-ms="credits">曲の出典</button>（作者と、使ってよい条件）</p>';
-    var card = $('#msCard'), fo = document.activeElement, foKey = fo && card.contains(fo) ? (fo.getAttribute('data-ms') || fo.getAttribute('data-ms-cat') || fo.id) : null;
+    var card = $('#msCard'), fo = document.activeElement, foKey = fo && card.contains(fo) ? (fo.getAttribute('data-ms') || fo.getAttribute('data-ms-cat') || fo.getAttribute('data-ms-mode') || fo.getAttribute('data-ms-track') || fo.id) : null;
     card.innerHTML = h;
     if (foKey) { // 作り直しても、押していたボタンにフォーカスを戻す
-      var back = card.querySelector('[data-ms="' + foKey + '"],[data-ms-cat="' + foKey + '"],#' + foKey);
+      var q = String(foKey).replace(/["\\]/g, '\\$&');
+      var back = card.querySelector('[data-ms="' + q + '"],[data-ms-cat="' + q + '"],[data-ms-mode="' + q + '"],[data-ms-track="' + q + '"]') || (/^[\w-]+$/.test(foKey) ? card.querySelector('#' + foKey) : null);
       if (back) back.focus();
     }
   }
@@ -1930,13 +1953,19 @@
     musicCall('play', key, { shuffle: true });
     renderMusic();
   }
+  function musicStartTrack(key, id) {
+    settings.musicCat = key; saveSettings();
+    music.err = ''; music.userPaused = false;
+    musicCall('play', key, { shuffle: false, trackId: id });
+    renderMusic();
+  }
   function musicToggle() {
     var cur = musicCur();
     if (musicPlaying()) { music.userPaused = true; musicCall('pause'); }
     else if (cur) { music.userPaused = false; music.err = ''; musicCall('resume'); }
     else {
       var cats = musicCats(), key = settings.musicCat && cats.some(function (c) { return c.key === settings.musicCat; }) ? settings.musicCat : (cats[0] && cats[0].key);
-      if (key) { musicStartCat(key); return; }
+      if (key) { if (settings.musicMode === 'pick') musicStartTrack(key, null); else musicStartCat(key); return; }
     }
     renderMusic();
   }
@@ -3563,6 +3592,10 @@
     if (e.target === $('#musicSheet')) { closeMusicSheet(); return; }
     var c = e.target.closest('[data-ms-cat]');
     if (c) { musicStartCat(c.getAttribute('data-ms-cat')); return; }
+    var tr = e.target.closest('[data-ms-track]');
+    if (tr) { musicStartTrack(tr.getAttribute('data-ms-tcat'), tr.getAttribute('data-ms-track')); return; }
+    var md = e.target.closest('[data-ms-mode]');
+    if (md) { settings.musicMode = md.getAttribute('data-ms-mode') === 'pick' ? 'pick' : 'auto'; saveSettings(); renderMusicSheet(); return; }
     var b = e.target.closest('[data-ms]');
     if (!b || b.disabled) return;
     var k = b.getAttribute('data-ms');
