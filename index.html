@@ -115,7 +115,8 @@
   .tab {
     flex: 1; min-height: var(--tab-h); border: 0; background: transparent;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-    font-size: calc(14px * var(--fs)); font-weight: 600; color: var(--ink-2); position: relative;
+    font-size: min(calc(14px * var(--fs)), 5.2vw); /* 狭い画面で文字を大きくしても「ルートを探す」が折り返さないように */
+    white-space: nowrap; font-weight: 600; color: var(--ink-2); position: relative;
   }
   .tab svg { width: 26px; height: 26px; }
   .tab[aria-current="page"] { color: var(--primary); }
@@ -751,7 +752,7 @@
 
         <h2 class="h">ゴール</h2>
         <div class="seg" role="group" aria-label="ゴール">
-          <button type="button" data-goal="start" aria-pressed="true">出発した場所に戻る</button>
+          <button type="button" data-goal="start" aria-pressed="true"><span class="nw">出発した</span><span class="nw">場所に戻る</span></button>
           <button type="button" data-goal="home" aria-pressed="false">家に戻る</button>
         </div>
         <div class="msg msg-notice" id="homeMissing" hidden>
@@ -1896,7 +1897,7 @@
     if (!cats.some(function (c) { return c.key === sel; })) sel = null;
     var t = cur && cur.track, pick = settings.musicMode === 'pick';
     var modeSeg = '<div class="seg ms-mode" role="group" aria-label="曲の流し方">' +
-      '<button type="button" data-ms-mode="auto" aria-pressed="' + !pick + '">おまかせで流す</button>' +
+      '<button type="button" data-ms-mode="auto" aria-pressed="' + !pick + '"><span class="nw">おまかせで</span><span class="nw">流す</span></button>' +
       '<button type="button" data-ms-mode="pick" aria-pressed="' + pick + '">曲を選ぶ</button></div>';
     var catsHtml = '<div class="ms-cats" role="group" aria-label="曲の種類">' + cats.map(function (c) {
         return '<button type="button" class="ms-cat" data-ms-cat="' + esc(c.key) + '" aria-pressed="' + (c.key === sel) + '"><b>' + esc(c.nameJa || c.key) + '</b>' + (c.descJa ? '<small>' + esc(c.descJa) + '</small>' : '') + '</button>';
