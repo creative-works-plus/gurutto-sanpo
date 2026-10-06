@@ -1130,7 +1130,10 @@
     historySel: null,
     following: true
   };
-  var gps = { watchId: null, pos: null, status: 'idle', errorJa: '' };
+  var gps = { watchId: null, pos: null, status: 'idle', errorJa: '', slow: false, slowTimer: null, retryTimer: null };
+  // パソコン（指で触る画面でない）か。パソコンは GPS が無く、まわりの Wi-Fi の電波で場所を調べる
+  function isPcLike() { try { return !window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }
+  var PC_WIFI_HINT = 'パソコンには GPS が無いので、まわりの Wi-Fi の電波で場所を調べます。有線でつないでいても、パソコンの Wi-Fi をオンにしておく（つながなくてよい）と見つかりやすくなります。';
 
   function colorOf(i) { return ROUTE_COLORS[i % ROUTE_COLORS.length]; }
   function letterOf(i) { return LETTERS[i] || String(i + 1); }
@@ -1383,7 +1386,17 @@
       renderStartStatus(); return;
     }
     if (gps.watchId != null) return;
-    if (!gps.pos) gps.status = 'checking';
+    clearTimeout(gps.retryTimer); gps.retryTimer = null;
+    if (!gps.pos) {
+      gps.status = 'checking'; gps.slow = false;
+      // なかなか見つからないときは、待つあいだに別の方法を案内する（ずっと「調べています…」のままにしない）
+      clearTimeout(gps.slowTimer);
+      gps.slowTimer = setTimeout(function () { if (!gps.pos && gps.status === 'checking') { gps.slow = true; renderStartStatus(); } }, 12000);
+      // 細かい位置を待つ前に、すぐわかるおおまかな位置（少し前に調べたものでもよい）を先に使う
+      try {
+        navigator.geolocation.getCurrentPosition(function (p) { if (!gps.pos) onGpsPos(p); }, function () {}, { enableHighAccuracy: false, maximumAge: 600000, timeout: 10000 });
+      } catch (e) {}
+    }
     renderStartStatus();
     try {
       gps.watchId = navigator.geolocation.watchPosition(onGpsPos, onGpsErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
@@ -1399,7 +1412,8 @@
   function onGpsPos(p) {
     var first = !gps.pos;
     gps.pos = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
-    gps.status = 'ok';
+    gps.status = 'ok'; gps.slow = false;
+    clearTimeout(gps.slowTimer); clearTimeout(gps.retryTimer); gps.retryTimer = null;
     if (!state.start || state.startSource === 'gps') {
       setStart(gps.pos, 'gps');
       if (first && map && state.tab === 'search' && state.searchView === 'form') map.setView([gps.pos.lat, gps.pos.lng], 16);
@@ -1416,7 +1430,12 @@
     } else {
       if (!gps.pos) {
         gps.status = 'error';
-        gps.errorJa = '今いる場所がわかりませんでした。建物の外など空が見える場所に出ると、わかりやすくなります。地図から出発地点を選ぶこともできます。';
+        gps.errorJa = isPcLike()
+          ? '今いる場所がわかりませんでした。' + PC_WIFI_HINT + 'もう一度調べているので少し待つか、「地図で出発地点を選ぶ」を使ってください。'
+          : '今いる場所がわかりませんでした。建物の外など空が見える場所に出ると、わかりやすくなります。地図から出発地点を選ぶこともできます。';
+        // 一度失敗すると調べるのをやめてしまうブラウザがあるので、少し待ってから調べ直す
+        clearTimeout(gps.retryTimer);
+        gps.retryTimer = setTimeout(function () { if (!gps.pos && !document.hidden) { stopGpsWatch(); startGpsWatch(); gps.status = 'error'; renderStartStatus(); } }, 10000);
       }
     }
     renderStartStatus();
@@ -1442,7 +1461,9 @@
     } else if (gps.status === 'error') {
       cls += 'error'; txt.textContent = gps.errorJa;
     } else {
-      cls += 'checking'; txt.textContent = '今いる場所を調べています…';
+      cls += 'checking';
+      txt.textContent = !gps.slow ? '今いる場所を調べています…'
+        : '今いる場所を調べるのに時間がかかっています。' + (isPcLike() ? PC_WIFI_HINT : '建物の外など空が見える場所だと、見つかりやすくなります。') + '待つか、「地図で出発地点を選ぶ」を使ってください。';
     }
     box.className = cls;
     $('#btnPickStart').textContent = state.startSource === 'map' ? '地図で選び直す' : '地図で出発地点を選ぶ';

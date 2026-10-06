@@ -33,6 +33,7 @@
   var JMA = 'https://www.jma.go.jp/bosai/';
   var GSI_REV = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress';
   var USE_GSI = true;
+  var GSI_WAIT = 4000;      // 住所の返事を待つのはここまで。遅いとき（2026-10-06 は毎回13〜16秒かかっていた）は予報区の形で決める
   var TTL = 10 * 60 * 1000, FOREVER = Infinity, TIMEOUT = 15000, MIN = 60000, H6 = 6 * 3600000, JST = 9 * 3600000;
   var NOWC_Z = 10;          // ナウキャストの一番細かいズーム（11 以上は空の絵が返る）
 
@@ -135,7 +136,12 @@
   function areaTable() { return shared(JMA + 'common/const/area.json', FOREVER, 'json'); }
 
   function locate(lat, lng, signal) {
-    var byGsi = USE_GSI ? soft(guard(shared(GSI_REV + '?lat=' + lat.toFixed(5) + '&lon=' + lng.toFixed(5), TTL, 'json'), signal)) : Promise.resolve(null);
+    // 住所が遅い・失敗・時間切れのときは null にして、下の「予報区の形」で決める（時間切れを中止あつかいにして天気ごと失敗させない）
+    var byGsi = !USE_GSI ? Promise.resolve(null) : guard(new Promise(function (res) {
+      var t = setTimeout(function () { res(null); }, GSI_WAIT);
+      shared(GSI_REV + '?lat=' + lat.toFixed(5) + '&lon=' + lng.toFixed(5), TTL, 'json').then(
+        function (v) { clearTimeout(t); res(v); }, function () { clearTimeout(t); res(null); });
+    }), signal);
     return Promise.all([guard(areaTable(), signal), byGsi]).then(function (r) {
       var area = r[0], g = r[1], muni = g && g.results && g.results.muniCd;
       if (muni) {
